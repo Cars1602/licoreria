@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="./assets/app.css">
+</head>
+<body>
+  <div id="adminRoot"></div>
+
+  <script src="./assets/app.js"></script>
+  <script src="./assets/admin-common.js"></script>
+  <script>
+    (async () => {
+      await bootAdminPage({
+        key: 'dashboard',
+        pageTitle: 'Dashboard',
+        pageHeading: 'PANTALLA DE INICIO',
+        pageDescription: 'Resumen general del inventario y la operacion',
+        content: `
+          <div class="metric-grid" id="stats"></div>
+          <div class="content-grid" style="margin-top:18px;">
+            <section class="surface-card">
+              <h3>Alertas de stock bajo</h3>
+              <div id="lowStockList" class="stack-list"></div>
+            </section>
+            <section class="surface-card">
+              <h3>Productos por vencer</h3>
+              <div id="expiringList" class="stack-list"></div>
+            </section>
+          </div>
+        `,
+      });
+
+      const [dashboard, productsData] = await Promise.all([
+        api('/api/admin/dashboard'),
+        api('/api/admin/products'),
+      ]);
+
+      const stats = [
+        ['Productos (total)', dashboard.cards.products],
+        ['Stock bajo', dashboard.cards.lowStock],
+        ['Por vencer', dashboard.cards.expiring],
+        ['Ventas hoy', Number(dashboard.cards.salesToday || 0).toFixed(2)],
+      ];
+      document.getElementById('stats').innerHTML = stats.map(([label, value]) => `
+        <div class="metric-card">
+          <small>${label}</small>
+          <strong>${value}</strong>
+        </div>
+      `).join('');
+
+      const products = productsData.items || [];
+      const lowStock = products.filter((item) => Number(item.stock) <= Number(item.stock_min));
+      const expiring = products
+        .filter((item) => item.expires_at)
+        .sort((a, b) => new Date(a.expires_at) - new Date(b.expires_at))
+        .slice(0, 8);
+
+      document.getElementById('lowStockList').innerHTML = lowStock.length
+        ? lowStock.map((item) => `
+            <div class="list-card">
+              <strong>${item.name}</strong>
+              <span>Codigo: ${item.barcode} | Stock: ${item.stock} | Min: ${item.stock_min}</span>
+            </div>
+          `).join('')
+        : '<p class="muted">Sin alertas.</p>';
+
+      document.getElementById('expiringList').innerHTML = expiring.length
+        ? expiring.map((item) => `
+            <div class="list-card">
+              <strong>${item.name}</strong>
+              <span>Codigo: ${item.barcode} | Vence: ${String(item.expires_at).slice(0, 10)}</span>
+            </div>
+          `).join('')
+        : '<p class="muted">No hay productos por vencer.</p>';
+    })().catch((error) => setNotice('adminNotice', error.message, 'error'));
+  </script>
+</body>
+</html>

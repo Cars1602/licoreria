@@ -1,0 +1,33 @@
+[build]
+  publish = "."
+  command = "echo 'No build step required for static deploy'"
+
+[[redirects]]
+  from = "/admin"
+  to = "/licoreria/dashboard.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/employee"
+  to = "/licoreria/employee.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/pos"
+  to = "/licoreria/pos.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/ticket"
+  to = "/licoreria/ticket.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/mobile-pos"
+  to = "/licoreria/mobile-pos.html"
+  status = 200
+  force = true

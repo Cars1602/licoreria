@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS | Licoreria</title>
+  <link rel="stylesheet" href="./assets/app.css">
+</head>
+<body>
+  <div class="container">
+    <div class="toolbar">
+      <div>
+        <h1 style="margin:0;">Punto de Venta</h1>
+        <p class="muted" id="posSubtitle">Cargando...</p>
+      </div>
+      <a class="button secondary" href="./employee">Volver</a>
+    </div>
+
+    <div id="posNotice" class="hidden"></div>
+
+    <div class="content-grid">
+      <section class="surface-card">
+        <h3>Escaneo rapido</h3>
+        <div class="grid">
+          <input class="input" id="scanInput" placeholder="PROD:2100000000017 o codigo de barras">
+          <button class="button" id="scanButton">Agregar al carrito</button>
+        </div>
+      </section>
+
+      <section class="surface-card">
+        <h3>Conexion por celular</h3>
+        <p class="muted">Escanea este QR desde el celular para abrir el lector movil y agregar productos al carrito.</p>
+        <div class="qr-box">
+          <img id="connectQrImage" alt="QR de conexion POS">
+          <p class="muted" id="connectUrlText"></p>
+        </div>
+      </section>
+    </div>
+
+    <div class="content-grid" style="margin-top:18px;">
+      <section class="surface-card">
+        <h3>Cobro</h3>
+        <form id="finalizeForm" class="stack-form">
+          <select class="select" id="paymentMethod" name="payment_method">
+            <option value="CASH">CASH</option>
+            <option value="CARD">CARD</option>
+            <option value="QR">QR</option>
+          </select>
+          <input class="input" type="number" id="discount" name="discount" value="0" min="0" step="0.01" placeholder="Descuento">
+          <input class="input" type="number" id="cashReceived" name="cash_received" value="0" min="0" step="0.01" placeholder="Pago con">
+          <input class="input" type="text" id="totalPayable" readonly placeholder="Total">
+          <input class="input" type="text" id="changeDue" readonly placeholder="Cambio">
+          <div id="qrBox" class="qr-box hidden">
+            <p class="muted" id="qrLabel"></p>
+            <img id="qrImage" alt="QR de pago">
+            <label class="checkline"><input type="checkbox" id="qrConfirmed" name="qr_confirmed" value="1"> Confirmo el pago por QR</label>
+          </div>
+          <button class="button" type="submit">Finalizar venta</button>
+        </form>
+      </section>
+
+      <section class="surface-card">
+        <h3>Carrito</h3>
+        <div class="table-wrap">
+          <table class="table" id="cartTable">
+            <thead><tr><th>Producto</th><th>Codigo</th><th>Cant.</th><th>Precio</th><th>Subt.</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+  <script>window.APP_BASE_URL='';</script>
+  <script src="./assets/app.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const posId = params.get('pos_id');
+    let currentSettings = null;
+    let cartItems = [];
+
+    function recalc() {
+      const total = cartItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+      const discount = Number(document.getElementById('discount').value || 0);
+      const payable = Math.max(0, total - discount);
+      const paymentMethod = document.getElementById('paymentMethod').value;
+      const cashReceived = Number(document.getElementById('cashReceived').value || 0);
+      const change = paymentMethod === 'CASH' ? Math.max(0, cashReceived - payable) : 0;
+      document.getElementById('cashReceived').classList.toggle('hidden', paymentMethod !== 'CASH');
+      document.getElementById('changeDue').classList.toggle('hidden', paymentMethod !== 'CASH');
+      document.getElementById('qrBox').classList.toggle('hidden', paymentMethod !== 'QR');
+      document.getElementById('totalPayable').value = money(payable);
+      document.getElementById('changeDue').value = money(change);
+      if (paymentMethod !== 'QR') {
+        document.getElementById('qrConfirmed').checked = false;
+      }
+    }
+
+    function renderCart() {
+      document.querySelector('#cartTable tbody').innerHTML = cartItems.length
+        ? cartItems.map((item) => `
+            <tr>
+              <td>${item.name}</td>
+              <td>${item.barcode}</td>
+              <td>${item.qty}</td>
+              <td>Bs ${money(item.price)}</td>
+              <td>Bs ${money(item.subtotal)}</td>
+            </tr>
+          `).join('')
+        : '<tr><td colspan="5" class="muted">El carrito esta vacio.</td></tr>';
+      recalc();
+    }
+
+    async function loadConnectionQr() {
+      const data = await api(`/api/pos/${posId}/connect`);
+      document.getElementById('connectQrImage').src = data.qrDataUrl;
+      document.getElementById('connectUrlText').textContent = data.mobileUrl;
+    }
+
+    async function loadPos() {
+      const config = await api('/api/config');
+      window.APP_BASE_URL = config.appBaseUrl || '';
+      currentSettings = config.settings;
+      const data = await api(`/api/pos/${posId}`);
+      cartItems = data.items || [];
+      currentSettings = data.settings || currentSettings;
+      document.getElementById('posSubtitle').textContent = `Sesion ${data.pos.id}`;
+      document.getElementById('qrLabel').textContent = currentSettings.qr_payment_label || 'Escanea este QR para pagar';
+      if (currentSettings.qr_payment_image) {
+        document.getElementById('qrImage').src = currentSettings.qr_payment_image;
+      }
+      renderCart();
+      await loadConnectionQr();
+    }
+
+    document.getElementById('scanButton').addEventListener('click', async () => {
+      const qrText = document.getElementById('scanInput').value.trim();
+      if (!qrText) return;
+      try {
+        await api(`/api/pos/${posId}/scan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qr_text: qrText }),
+        });
+        document.getElementById('scanInput').value = '';
+        await loadPos();
+      } catch (error) {
+        setNotice('posNotice', error.message, 'error');
+      }
+    });
+
+    document.getElementById('paymentMethod').addEventListener('change', recalc);
+    document.getElementById('discount').addEventListener('input', recalc);
+    document.getElementById('cashReceived').addEventListener('input', recalc);
+
+    document.getElementById('finalizeForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        const payload = {
+          payment_method: document.getElementById('paymentMethod').value,
+          discount: document.getElementById('discount').value,
+          cash_received: document.getElementById('cashReceived').value,
+          qr_confirmed: document.getElementById('qrConfirmed').checked ? '1' : '0',
+        };
+        const data = await api(`/api/pos/${posId}/finalize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        window.location.href = `${window.APP_BASE_URL}/ticket?sale_id=${data.saleId}&print=1`;
+      } catch (error) {
+        setNotice('posNotice', error.message, 'error');
+      }
+    });
+
+    loadPos().catch((error) => setNotice('posNotice', error.message, 'error'));
+  </script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Movimientos</title>
+  <link rel="stylesheet" href="./assets/app.css">
+</head>
+<body>
+  <div id="adminRoot"></div>
+
+  <script src="./assets/app.js"></script>
+  <script src="./assets/admin-common.js"></script>
+  <script>
+    (async () => {
+      await bootAdminPage({
+        key: 'movements',
+        pageTitle: 'Movimientos',
+        pageHeading: 'MOVIMIENTOS',
+        pageDescription: 'Kardex y movimientos del inventario',
+        content: `
+          <section class="surface-card">
+            <h3>Ultimos movimientos</h3>
+            <div class="table-wrap">
+              <table class="table" id="movementsTable">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Usuario</th>
+                    <th>Items</th>
+                    <th>Cantidad</th>
+                    <th>Referencia</th>
+                    <th>Nota</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+        `,
+      });
+
+      const data = await api('/api/admin/movements');
+      document.querySelector('#movementsTable tbody').innerHTML = (data.items || []).map((item) => `
+        <tr>
+          <td>${new Date(item.created_at).toLocaleString()}</td>
+          <td>${item.type}</td>
+          <td>${item.display_name}</td>
+          <td>${item.items_count}</td>
+          <td>${item.total_qty}</td>
+          <td>${item.ref_table || '-'} ${item.ref_id || ''}</td>
+          <td>${item.note || '-'}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="7" class="muted">Sin movimientos registrados.</td></tr>';
+    })().catch((error) => setNotice('adminNotice', error.message, 'error'));
+  </script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | Licoreria</title>
+  <link rel="stylesheet" href="./licoreria/assets/app.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <h1>Licoreria</h1>
+      <p class="muted">Inicia sesion para continuar</p>
+      <div id="loginNotice" class="hidden"></div>
+      <form id="loginForm">
+        <div class="grid">
+          <input class="input" type="email" name="email" placeholder="Correo" required>
+          <input class="input" type="password" name="password" placeholder="Contrasena" required>
+          <button class="button" type="submit">Entrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script>
+    window.APP_BASE_URL = '';
+  </script>
+  <script src="./licoreria/assets/app.js"></script>
+  <script>
+    api('/api/config').then((data) => {
+      window.APP_BASE_URL = data.appBaseUrl || '';
+      document.title = 'Login | ' + (data.settings.business_name || 'Licoreria');
+    }).catch(() => {
+      setNotice('loginNotice', 'Debes iniciar el servidor Node.js para usar el sistema.', 'error');
+    });
+
+    document.getElementById('loginForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      setNotice('loginNotice', '');
+      try {
+        const data = await api('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: form.get('email'),
+            password: form.get('password'),
+          }),
+        });
+
+        if (!data.user || !data.user.role) {
+          throw new Error('No se pudo iniciar sesion');
+        }
+
+        if (data.user.role === 'admin') {
+          window.location.href = (window.APP_BASE_URL || '') + '/admin';
+        } else {
+          window.location.href = (window.APP_BASE_URL || '') + '/employee';
+        }
+      } catch (error) {
+        setNotice('loginNotice', error.message, 'error');
+      }
+    });
+  </script>
+</body>
+</html>

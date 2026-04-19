@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Empleado | Licoreria</title>
+  <link rel="stylesheet" href="./assets/app.css">
+</head>
+<body>
+  <div class="employee-app">
+    <div class="employee-shell">
+      <div class="employee-header">
+        <div>
+          <h1>POS Empleado</h1>
+          <p id="employeeSubtitle">Cargando...</p>
+        </div>
+        <div class="inline-actions">
+          <button class="button secondary" id="openPosButton">Ir al POS</button>
+          <button class="button danger" id="logoutButton">Cerrar sesion</button>
+        </div>
+      </div>
+
+      <div id="employeeNotice" class="hidden"></div>
+
+      <div class="employee-grid">
+        <section class="surface-card">
+          <h3>Datos del empleado</h3>
+          <div class="employee-data" id="employeeData"></div>
+        </section>
+
+        <section class="surface-card">
+          <h3>Sesion POS activa</h3>
+          <p class="muted" id="employeeSessionText">Cargando estado del POS...</p>
+          <div class="inline-actions">
+            <button class="button" id="openPosInlineButton">Abrir POS</button>
+          </div>
+        </section>
+      </div>
+
+      <section class="surface-card" style="margin-top:18px;">
+        <h3>Resumen del dia</h3>
+        <div class="metric-grid compact" id="employeeStats"></div>
+      </section>
+
+      <section class="surface-card" style="margin-top:18px;">
+        <h3>Ultimas ventas</h3>
+        <div class="table-wrap">
+          <table class="table" id="recentSalesTable">
+            <thead>
+              <tr>
+                <th>Factura</th>
+                <th>Metodo</th>
+                <th>Total</th>
+                <th>Fecha</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>window.APP_BASE_URL='';</script>
+  <script src="./assets/app.js"></script>
+  <script>
+    let activePosId = null;
+
+    function goToPos() {
+      if (!activePosId) return;
+      window.location.href = `${window.APP_BASE_URL}/pos?pos_id=${activePosId}`;
+    }
+
+    async function ensurePosAndGo() {
+      try {
+        if (!activePosId) {
+          const data = await api('/api/pos/session', { method: 'POST' });
+          activePosId = data.session.id;
+        }
+        goToPos();
+      } catch (error) {
+        setNotice('employeeNotice', error.message, 'error');
+      }
+    }
+
+    async function loadEmployee() {
+      const config = await api('/api/config');
+      window.APP_BASE_URL = config.appBaseUrl || '';
+      const me = await api('/api/auth/me');
+      if (!me.user) {
+        window.location.href = (window.APP_BASE_URL || '') + '/';
+        return;
+      }
+
+      const data = await api('/api/employee/dashboard');
+      activePosId = data.activePos ? data.activePos.id : null;
+
+      document.title = 'Empleado | ' + (config.settings.business_name || 'Licoreria');
+      document.getElementById('employeeSubtitle').textContent = `Bienvenido, ${data.user.display_name}`;
+      document.getElementById('employeeSessionText').textContent = activePosId
+        ? 'Ya tienes una sesion abierta. Entra al POS para mostrar el QR de vinculacion y el carrito.'
+        : 'No tienes una sesion abierta. Pulsa el boton para abrir el POS.';
+
+      document.getElementById('employeeData').innerHTML = `
+        <div class="employee-data-card"><strong>Nombre:</strong><span>${data.user.display_name}</span></div>
+        <div class="employee-data-card"><strong>Correo:</strong><span>${data.user.email}</span></div>
+        <div class="employee-data-card"><strong>Rol:</strong><span>${data.user.role}</span></div>
+        <div class="employee-data-card"><strong>Estado POS:</strong><span>${activePosId ? 'Activo' : 'Sin abrir'}</span></div>
+      `;
+
+      document.getElementById('employeeStats').innerHTML = `
+        <div class="metric-card"><small>Ventas hoy</small><strong>${data.salesToday}</strong></div>
+        <div class="metric-card"><small>Total vendido</small><strong>Bs ${money(data.amountToday)}</strong></div>
+        <div class="metric-card"><small>POS activo</small><strong>${activePosId ? 'SI' : 'NO'}</strong></div>
+        <div class="metric-card"><small>Pago por defecto</small><strong>${data.settings.default_payment_method}</strong></div>
+      `;
+
+      document.querySelector('#recentSalesTable tbody').innerHTML = data.recentSales.length
+        ? data.recentSales.map((sale) => `
+            <tr>
+              <td><a href="${window.APP_BASE_URL}/ticket?sale_id=${sale.id}">${sale.invoice_no}</a></td>
+              <td>${sale.payment_method}</td>
+              <td>Bs ${money(sale.total)}</td>
+              <td>${new Date(sale.created_at).toLocaleString()}</td>
+            </tr>
+          `).join('')
+        : '<tr><td colspan="4" class="muted">Todavia no hay ventas registradas.</td></tr>';
+
+      document.getElementById('openPosButton').textContent = activePosId ? 'Ir al POS' : 'Abrir POS';
+      document.getElementById('openPosInlineButton').textContent = activePosId ? 'Abrir POS' : 'Crear POS';
+    }
+
+    document.getElementById('openPosButton').addEventListener('click', ensurePosAndGo);
+    document.getElementById('openPosInlineButton').addEventListener('click', ensurePosAndGo);
+
+    document.getElementById('logoutButton').addEventListener('click', async () => {
+      await api('/api/auth/logout', { method: 'POST' });
+      window.location.href = (window.APP_BASE_URL || '') + '/';
+    });
+
+    loadEmployee().catch((error) => setNotice('employeeNotice', error.message, 'error'));
+  </script>
+</body>
+</html>

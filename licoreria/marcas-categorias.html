@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marcas y Categorias</title>
+  <link rel="stylesheet" href="./assets/app.css">
+</head>
+<body>
+  <div id="adminRoot"></div>
+
+  <script src="./assets/app.js"></script>
+  <script src="./assets/admin-common.js"></script>
+  <script>
+    async function loadCatalogs() {
+      const data = await api('/api/admin/catalogs');
+      document.getElementById('categoryList').innerHTML = (data.categories || []).map((item) => `<span class="chip">${item.name}</span>`).join('') || '<span class="muted">Sin categorias.</span>';
+      document.getElementById('brandList').innerHTML = (data.brands || []).map((item) => `<span class="chip">${item.name}</span>`).join('') || '<span class="muted">Sin marcas.</span>';
+    }
+
+    (async () => {
+      await bootAdminPage({
+        key: 'catalogs',
+        pageTitle: 'Marcas y Categorias',
+        pageHeading: 'MARCAS Y CATEGORIAS',
+        pageDescription: 'Catalogos base del inventario',
+        content: `
+          <div class="triple-grid">
+            <section class="surface-card">
+              <h3>Categorias</h3>
+              <form class="catalogForm stack-form" data-type="categories">
+                <input class="input" name="name" placeholder="Nueva categoria" required>
+                <button class="button secondary" type="submit">Guardar categoria</button>
+              </form>
+              <div id="categoryList" class="chip-list"></div>
+            </section>
+
+            <section class="surface-card">
+              <h3>Marcas</h3>
+              <form class="catalogForm stack-form" data-type="brands">
+                <input class="input" name="name" placeholder="Nueva marca" required>
+                <button class="button secondary" type="submit">Guardar marca</button>
+              </form>
+              <div id="brandList" class="chip-list"></div>
+            </section>
+
+            <section class="surface-card">
+              <h3>Resumen</h3>
+              <p class="muted">Usa estas opciones para clasificar productos y mantener el inventario ordenado.</p>
+            </section>
+          </div>
+        `,
+      });
+
+      await loadCatalogs();
+
+      document.querySelectorAll('.catalogForm').forEach((form) => {
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const currentForm = event.currentTarget;
+          const type = currentForm.dataset.type;
+          const payload = Object.fromEntries(new FormData(currentForm).entries());
+          try {
+            await api(`/api/admin/catalogs/${type}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            currentForm.reset();
+            await loadCatalogs();
+            setNotice('adminNotice', 'Catalogo guardado correctamente', 'success');
+          } catch (error) {
+            setNotice('adminNotice', error.message, 'error');
+          }
+        });
+      });
+    })().catch((error) => setNotice('adminNotice', error.message, 'error'));
+  </script>
+</body>
+</html>

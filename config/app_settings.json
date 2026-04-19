@@ -1,0 +1,8 @@
+{
+    "business_name": "Licoreria",
+    "currency_symbol": "Bs",
+    "low_stock_alert_days": 7,
+    "default_payment_method": "CASH",
+    "support_phone": "",
+    "store_message": "Gracias por tu compra."
+}
