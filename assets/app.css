@@ -204,6 +204,11 @@ a {
   overflow-x: auto;
 }
 
+.compact-input {
+  width: auto;
+  min-width: 180px;
+}
+
 .scanner-video {
   width: 100%;
   max-height: 320px;
@@ -440,6 +445,47 @@ a {
 
 .list-card span {
   color: var(--muted);
+}
+
+.chart-list {
+  display: grid;
+  gap: 14px;
+}
+
+.chart-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 2fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.chart-label {
+  display: grid;
+  gap: 4px;
+}
+
+.chart-label span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.chart-bar-wrap {
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(38, 58, 95, 0.95);
+  overflow: hidden;
+  border: 1px solid rgba(60, 93, 145, 0.45);
+}
+
+.chart-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3b70ff, #6e9cff);
+}
+
+.chart-value {
+  font-weight: 700;
+  color: #dbe7ff;
 }
 
 .chip-list {

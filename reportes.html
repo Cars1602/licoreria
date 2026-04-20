@@ -20,6 +20,14 @@
         pageHeading: 'REPORTES',
         pageDescription: 'Resumen comercial y productos mas vendidos',
         content: `
+          <section class="surface-card" style="margin-bottom:18px;">
+            <div class="inline-actions">
+              <label class="checkline">Mes
+                <input class="input compact-input" type="month" id="reportMonth">
+              </label>
+              <button class="button secondary compact" type="button" id="applyMonthFilter">Aplicar filtro</button>
+            </div>
+          </section>
           <div class="metric-grid compact" id="reportSummary"></div>
           <div class="content-grid" style="margin-top:18px;">
             <section class="surface-card">
@@ -34,27 +42,43 @@
         `,
       });
 
-      const data = await api('/api/admin/reports');
-      const summary = data.summary || {};
-      document.getElementById('reportSummary').innerHTML = `
-        <div class="metric-card"><small>Ventas totales</small><strong>${summary.total_sales || 0}</strong></div>
-        <div class="metric-card"><small>Monto total</small><strong>Bs ${money(summary.total_amount)}</strong></div>
-        <div class="metric-card"><small>Ticket promedio</small><strong>Bs ${money(summary.average_ticket)}</strong></div>
-      `;
+      async function loadReports(month = '') {
+        const query = month ? `?month=${encodeURIComponent(month)}` : '';
+        const data = await api(`/api/admin/reports${query}`);
+        const summary = data.summary || {};
+        document.getElementById('reportSummary').innerHTML = `
+          <div class="metric-card"><small>Ventas totales</small><strong>${summary.total_sales || 0}</strong></div>
+          <div class="metric-card"><small>Monto total</small><strong>Bs ${money(summary.total_amount)}</strong></div>
+          <div class="metric-card"><small>Ticket promedio</small><strong>Bs ${money(summary.average_ticket)}</strong></div>
+          <div class="metric-card"><small>Ganancia</small><strong>Bs ${money(summary.gross_profit)}</strong></div>
+        `;
 
-      document.getElementById('paymentMethods').innerHTML = (data.paymentMethods || []).map((item) => `
-        <div class="list-card">
-          <strong>${item.payment_method}</strong>
-          <span>Ventas: ${item.total} | Monto: Bs ${money(item.amount)}</span>
-        </div>
-      `).join('') || '<p class="muted">Sin datos.</p>';
+        document.getElementById('paymentMethods').innerHTML = (data.paymentMethods || []).map((item) => `
+          <div class="list-card">
+            <strong>${item.payment_method}</strong>
+            <span>Ventas: ${item.total} | Monto: Bs ${money(item.amount)}</span>
+          </div>
+        `).join('') || '<p class="muted">Sin datos.</p>';
 
-      document.getElementById('topProducts').innerHTML = (data.topProducts || []).map((item) => `
-        <div class="list-card">
-          <strong>${item.name_snap}</strong>
-          <span>Codigo: ${item.barcode_snap} | Vendido: ${item.qty_sold} | Monto: Bs ${money(item.amount)}</span>
-        </div>
-      `).join('') || '<p class="muted">Sin datos.</p>';
+        document.getElementById('topProducts').innerHTML = (data.topProducts || []).map((item) => `
+          <div class="list-card">
+            <strong>${item.name_snap}</strong>
+            <span>Codigo: ${item.barcode_snap} | Vendido: ${item.qty_sold} | Monto: Bs ${money(item.amount)} | Ganancia: Bs ${money(item.profit)}</span>
+          </div>
+        `).join('') || '<p class="muted">Sin datos.</p>';
+      }
+
+      const monthInput = document.getElementById('reportMonth');
+      monthInput.value = new Date().toISOString().slice(0, 7);
+      await loadReports(monthInput.value);
+
+      document.getElementById('applyMonthFilter').addEventListener('click', async () => {
+        try {
+          await loadReports(monthInput.value);
+        } catch (error) {
+          setNotice('adminNotice', error.message, 'error');
+        }
+      });
     })().catch((error) => setNotice('adminNotice', error.message, 'error'));
   </script>
 </body>

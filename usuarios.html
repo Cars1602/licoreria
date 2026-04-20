@@ -35,7 +35,12 @@
           <td>${user.email}</td>
           <td>${user.role}</td>
           <td>${user.active ? 'Activo' : 'Inactivo'}</td>
-          <td><button class="button secondary compact" type="button" data-user-id="${user.id}">Editar</button></td>
+          <td>
+            <div class="inline-actions">
+              <button class="button secondary compact" type="button" data-user-id="${user.id}">Editar</button>
+              <button class="button danger compact" type="button" data-delete-user-id="${user.id}">Eliminar</button>
+            </div>
+          </td>
         </tr>
       `).join('');
       fillUserForm();
@@ -121,9 +126,25 @@
 
       document.getElementById('usersTable').addEventListener('click', (event) => {
         const button = event.target.closest('[data-user-id]');
-        if (!button) return;
-        const user = usersState.items.find((item) => item.id === button.dataset.userId);
-        if (user) fillUserForm(user);
+        const deleteButton = event.target.closest('[data-delete-user-id]');
+
+        if (button) {
+          const user = usersState.items.find((item) => item.id === button.dataset.userId);
+          if (user) fillUserForm(user);
+        }
+
+        if (deleteButton) {
+          const user = usersState.items.find((item) => item.id === deleteButton.dataset.deleteUserId);
+          if (!user) return;
+          if (!window.confirm(`Eliminar al usuario ${user.display_name}?`)) return;
+
+          api(`/api/admin/users/${user.id}`, { method: 'DELETE' })
+            .then(async () => {
+              await loadUsers();
+              setNotice('adminNotice', 'Usuario eliminado correctamente', 'success');
+            })
+            .catch((error) => setNotice('adminNotice', error.message, 'error'));
+        }
       });
     })().catch((error) => setNotice('adminNotice', error.message, 'error'));
   </script>

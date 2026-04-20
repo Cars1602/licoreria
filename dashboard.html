@@ -31,6 +31,10 @@
               <div id="expiringList" class="stack-list"></div>
             </section>
           </div>
+          <section class="surface-card" style="margin-top:18px;">
+            <h3>Productos mas vendidos</h3>
+            <div id="topProductsChart" class="chart-list"></div>
+          </section>
         `,
       });
 
@@ -76,6 +80,23 @@
             </div>
           `).join('')
         : '<p class="muted">No hay productos por vencer.</p>';
+
+      const topProducts = dashboard.topProducts || [];
+      const maxQty = Math.max(...topProducts.map((item) => Number(item.qty_sold || 0)), 1);
+      document.getElementById('topProductsChart').innerHTML = topProducts.length
+        ? topProducts.map((item) => `
+            <div class="chart-row">
+              <div class="chart-label">
+                <strong>${item.name_snap}</strong>
+                <span>${item.barcode_snap || '-'}</span>
+              </div>
+              <div class="chart-bar-wrap">
+                <div class="chart-bar" style="width:${(Number(item.qty_sold || 0) / maxQty) * 100}%"></div>
+              </div>
+              <div class="chart-value">${item.qty_sold}</div>
+            </div>
+          `).join('')
+        : '<p class="muted">Aun no hay ventas para mostrar.</p>';
     })().catch((error) => setNotice('adminNotice', error.message, 'error'));
   </script>
 </body>

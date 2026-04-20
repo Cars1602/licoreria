@@ -118,6 +118,33 @@ function defaultProductQrPayload(barcode) {
   return `PROD:${barcode}`;
 }
 
+function normalizeScannedBarcode(qrText) {
+  const raw = String(qrText || '').trim();
+  if (!raw) return '';
+
+  if (raw.startsWith('PROD:')) {
+    return raw.slice(5).trim();
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.barcode) return String(parsed.barcode).trim();
+    if (parsed?.product_barcode) return String(parsed.product_barcode).trim();
+  } catch {
+    // ignore parse errors
+  }
+
+  try {
+    const url = new URL(raw);
+    const barcode = url.searchParams.get('barcode') || url.searchParams.get('product');
+    if (barcode) return barcode.trim();
+  } catch {
+    // ignore parse errors
+  }
+
+  return raw;
+}
+
 function getLanIpAddress() {
   const interfaces = os.networkInterfaces();
   for (const addresses of Object.values(interfaces)) {
@@ -205,9 +232,14 @@ async function getPosCartSnapshot(posId) {
 }
 
 async function addProductToCartByBarcode(posId, barcode) {
+  const normalizedBarcode = normalizeScannedBarcode(barcode);
   const productResult = await pool.query(
-    'SELECT id, name, stock FROM products WHERE barcode = $1 AND active = TRUE LIMIT 1',
-    [barcode]
+    `SELECT id, name, stock
+     FROM products
+     WHERE active = TRUE
+       AND (barcode = $1 OR qr_payload = $2)
+     LIMIT 1`,
+    [normalizedBarcode, String(barcode || '').trim()]
   );
 
   if (!productResult.rows.length) {
@@ -243,6 +275,13 @@ async function addProductToCartByBarcode(posId, barcode) {
 async function initializeDatabase() {
   const schemaSql = fs.readFileSync(schemaFile, 'utf8');
   await pool.query(schemaSql);
+  await pool.query(`
+    ALTER TABLE suppliers
+      ADD COLUMN IF NOT EXISTS contact_name TEXT NULL,
+      ADD COLUMN IF NOT EXISTS email TEXT NULL,
+      ADD COLUMN IF NOT EXISTS address TEXT NULL,
+      ADD COLUMN IF NOT EXISTS notes TEXT NULL
+  `);
 }
 
 async function generateInvoiceNo(client) {
@@ -285,6 +324,7 @@ app.use((req, res, next) => {
 });
 
 app.use(basePrefix, express.static(publicDir, { index: false }));
+app.use('/assets', express.static(path.join(__dirname, 'assets'), { index: false }));
 app.use('/licoreria/assets', express.static(path.join(__dirname, 'licoreria', 'assets'), { index: false }));
 
 // Handle favicon.ico requests
@@ -333,7 +373,11 @@ async function getCatalogOptions() {
   const [categories, brands, suppliers] = await Promise.all([
     pool.query('SELECT id, name, active FROM categories ORDER BY name ASC'),
     pool.query('SELECT id, name, active FROM brands ORDER BY name ASC'),
-    pool.query('SELECT id, name, active FROM suppliers ORDER BY name ASC'),
+    pool.query(`
+      SELECT id, name, phone, contact_name, email, address, notes, active
+      FROM suppliers
+      ORDER BY name ASC
+    `),
   ]);
 
   return {
@@ -473,12 +517,21 @@ app.get(appUrl('api/auth/me'), (req, res) => {
 
 app.get(appUrl('api/admin/dashboard'), requireAdmin, async (_, res) => {
   try {
-    const [products, lowStock, expiring, salesToday, users] = await Promise.all([
+    const [products, lowStock, expiring, salesToday, users, topProducts] = await Promise.all([
       pool.query("SELECT COUNT(*)::int AS total FROM products WHERE active = TRUE"),
       pool.query("SELECT COUNT(*)::int AS total FROM products WHERE active = TRUE AND stock <= stock_min"),
       pool.query("SELECT COUNT(*)::int AS total FROM products WHERE active = TRUE AND expires_at IS NOT NULL AND expires_at <= CURRENT_DATE + INTERVAL '7 days'"),
       pool.query("SELECT COALESCE(SUM(total), 0) AS total FROM sales WHERE status = 'PAID' AND created_at::date = CURRENT_DATE"),
       pool.query('SELECT COUNT(*)::int AS total FROM users WHERE active = TRUE'),
+      pool.query(`
+        SELECT si.name_snap, si.barcode_snap, COALESCE(SUM(si.qty), 0) AS qty_sold
+        FROM sale_items si
+        INNER JOIN sales s ON s.id = si.sale_id
+        WHERE s.status = 'PAID'
+        GROUP BY si.name_snap, si.barcode_snap
+        ORDER BY qty_sold DESC, si.name_snap ASC
+        LIMIT 5
+      `),
     ]);
 
     res.json({
@@ -489,6 +542,7 @@ app.get(appUrl('api/admin/dashboard'), requireAdmin, async (_, res) => {
         salesToday: salesToday.rows[0].total,
         users: users.rows[0].total,
       },
+      topProducts: topProducts.rows,
       settings: readSettings(),
     });
   } catch (error) {
@@ -524,12 +578,21 @@ app.post(appUrl('api/admin/catalogs/:type'), requireAdmin, async (req, res) => {
     let result;
     if (tableName === 'suppliers') {
       const phone = normalizeNullableText(req.body.phone);
+      const contactName = normalizeNullableText(req.body.contact_name);
+      const email = normalizeNullableText(req.body.email);
+      const address = normalizeNullableText(req.body.address);
+      const notes = normalizeNullableText(req.body.notes);
       result = await pool.query(
-        `INSERT INTO suppliers (name, phone, active)
-         VALUES ($1, $2, TRUE)
-         ON CONFLICT (name) DO UPDATE SET phone = COALESCE(EXCLUDED.phone, suppliers.phone)
-         RETURNING id, name, phone, active`,
-        [name, phone]
+        `INSERT INTO suppliers (name, phone, contact_name, email, address, notes, active)
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+         ON CONFLICT (name) DO UPDATE
+         SET phone = COALESCE(EXCLUDED.phone, suppliers.phone),
+             contact_name = COALESCE(EXCLUDED.contact_name, suppliers.contact_name),
+             email = COALESCE(EXCLUDED.email, suppliers.email),
+             address = COALESCE(EXCLUDED.address, suppliers.address),
+             notes = COALESCE(EXCLUDED.notes, suppliers.notes)
+         RETURNING id, name, phone, contact_name, email, address, notes, active`,
+        [name, phone, contactName, email, address, notes]
       );
     } else {
       result = await pool.query(
@@ -744,37 +807,57 @@ app.get(appUrl('api/admin/sales'), requireAdmin, async (_, res) => {
   }
 });
 
-app.get(appUrl('api/admin/reports'), requireAdmin, async (_, res) => {
+app.get(appUrl('api/admin/reports'), requireAdmin, async (req, res) => {
   try {
+    const monthParam = String(req.query.month || '').trim();
+    const normalizedMonth = /^\d{4}-\d{2}$/.test(monthParam)
+      ? `${monthParam}-01`
+      : null;
+    const dateFilterSql = normalizedMonth
+      ? "AND s.created_at >= $1::date AND s.created_at < ($1::date + INTERVAL '1 month')"
+      : '';
+    const summaryParams = normalizedMonth ? [normalizedMonth] : [];
+
     const [summary, paymentMethods, topProducts] = await Promise.all([
       pool.query(`
         SELECT
           COUNT(*)::int AS total_sales,
           COALESCE(SUM(total), 0) AS total_amount,
-          COALESCE(AVG(total), 0) AS average_ticket
-        FROM sales
-        WHERE status = 'PAID'
-      `),
+          COALESCE(AVG(total), 0) AS average_ticket,
+          COALESCE(SUM(total - COALESCE(item_costs.cost_total, 0)), 0) AS gross_profit
+        FROM sales s
+        LEFT JOIN (
+          SELECT sale_id, COALESCE(SUM(qty * cost_snap), 0) AS cost_total
+          FROM sale_items
+          GROUP BY sale_id
+        ) item_costs ON item_costs.sale_id = s.id
+        WHERE s.status = 'PAID'
+        ${dateFilterSql}
+      `, summaryParams),
       pool.query(`
         SELECT payment_method, COUNT(*)::int AS total, COALESCE(SUM(total), 0) AS amount
-        FROM sales
-        WHERE status = 'PAID'
+        FROM sales s
+        WHERE s.status = 'PAID'
+        ${dateFilterSql}
         GROUP BY payment_method
         ORDER BY amount DESC
-      `),
+      `, summaryParams),
       pool.query(`
         SELECT si.name_snap, si.barcode_snap, COALESCE(SUM(si.qty), 0) AS qty_sold,
-               COALESCE(SUM(si.qty * si.price_snap), 0) AS amount
+               COALESCE(SUM(si.qty * si.price_snap), 0) AS amount,
+               COALESCE(SUM(si.qty * (si.price_snap - si.cost_snap)), 0) AS profit
         FROM sale_items si
         INNER JOIN sales s ON s.id = si.sale_id
         WHERE s.status = 'PAID'
+        ${dateFilterSql}
         GROUP BY si.name_snap, si.barcode_snap
         ORDER BY amount DESC
         LIMIT 10
-      `),
+      `, summaryParams),
     ]);
 
     res.json({
+      month: normalizedMonth ? normalizedMonth.slice(0, 7) : null,
       summary: summary.rows[0],
       paymentMethods: paymentMethods.rows,
       topProducts: topProducts.rows,
@@ -855,6 +938,19 @@ app.put(appUrl('api/admin/users/:id'), requireAdmin, async (req, res) => {
     res.json({ ok: true });
   } catch (error) {
     res.status(400).json({ error: 'No se pudo actualizar el usuario', detail: error.message });
+  }
+});
+
+app.delete(appUrl('api/admin/users/:id'), requireAdmin, async (req, res) => {
+  try {
+    if (req.session.user?.id === req.params.id) {
+      return res.status(400).json({ error: 'No puedes eliminar tu propio usuario administrador' });
+    }
+
+    await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ error: 'No se pudo eliminar el usuario', detail: error.message });
   }
 });
 
