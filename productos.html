@@ -4,17 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Productos</title>
-  <link rel="stylesheet" href="/licoreria/assets/app.css">
+  <link rel="stylesheet" href="./assets/app.css">
 </head>
 <body>
   <div id="adminRoot"></div>
 
-    <script>
-    window.APP_BASE_URL = '';
-    window.API_BASE_URL = 'https://licoreria-api.onrender.com';
-  </script>
-  <script src="/licoreria/assets/app.js"></script>
-  <script src="/licoreria/assets/admin-common.js"></script>
+  <script>window.APP_BASE_URL='';</script>
+  <script src="./assets/app.js"></script>
+  <script src="./assets/admin-common.js"></script>
   <script>
     const state = { products: [], categories: [], brands: [] };
 
@@ -125,6 +122,9 @@
                 <img id="qrPreview" alt="QR del producto">
                 <h4 id="qrProductTitle"></h4>
                 <p class="muted" id="qrProductPayload"></p>
+                <div class="inline-actions" style="margin-top:14px;">
+                  <button class="button secondary compact" id="printQrButton" type="button">Imprimir QR</button>
+                </div>
               </div>
             </section>
           </div>
@@ -198,6 +198,36 @@
             setNotice('adminNotice', error.message, 'error');
           }
         }
+      });
+
+      document.getElementById('printQrButton').addEventListener('click', () => {
+        const qrImg = document.getElementById('qrPreview').src;
+        if (!qrImg) {
+          setNotice('adminNotice', 'Primero genera o visualiza el QR del producto.', 'error');
+          return;
+        }
+        const printWindow = window.open('', '_blank');
+        const title = document.getElementById('qrProductTitle').textContent;
+        const payload = document.getElementById('qrProductPayload').textContent;
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>QR de Producto</title>
+              <style>
+                body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+                img { max-width: 300px; }
+              </style>
+            </head>
+            <body>
+              <h2>${title}</h2>
+              <img src="${qrImg}" alt="QR">
+              <p>${payload}</p>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
       });
     })().catch((error) => setNotice('adminNotice', error.message, 'error'));
   </script>

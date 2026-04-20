@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login | Licoreria</title>
-  <link rel="stylesheet" href="./licoreria/assets/app.css">
+  <link rel="stylesheet" href="./assets/app.css">
 </head>
 <body>
   <div class="login-wrap">
@@ -21,11 +21,8 @@
       </form>
     </div>
   </div>
-  <script>
-    window.APP_BASE_URL = '';
-    window.API_BASE_URL = 'https://licoreria-api.onrender.com';
-  </script>
-  <script src="./licoreria/assets/app.js"></script>
+  <script>window.APP_BASE_URL='';</script>
+  <script src="./assets/app.js"></script>
   <script>
     api('/api/config').then((data) => {
       window.APP_BASE_URL = data.appBaseUrl || '';

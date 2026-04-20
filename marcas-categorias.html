@@ -4,21 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Marcas y Categorias</title>
-  <link rel="stylesheet" href="/licoreria/assets/app.css">
+  <link rel="stylesheet" href="./assets/app.css">
 </head>
 <body>
   <div id="adminRoot"></div>
 
-    <script>
-    window.APP_BASE_URL = '';
-    window.API_BASE_URL = 'https://licoreria-api.onrender.com';
-  </script>
-  <script src="/licoreria/assets/app.js"></script>
-  <script src="/licoreria/assets/admin-common.js"></script>
+  <script>window.APP_BASE_URL='';</script>
+  <script src="./assets/app.js"></script>
+  <script src="./assets/admin-common.js"></script>
   <script>
     async function loadCatalogs() {
       const data = await api('/api/admin/catalogs');
-      document.getElementById('categoryList').innerHTML = (data.categories || []).map((item) => `<span class="chip">${item.name}</span>`).join('') || '<span class="muted">Sin categorias.</span>';
+      document.getElementById('categoryList').innerHTML = (data.categories || []).map((item) => `
+        <span class="chip">
+          ${item.name}
+          <button class="chip-delete" type="button" data-delete-category="${item.id}">x</button>
+        </span>
+      `).join('') || '<span class="muted">Sin categorias.</span>';
       document.getElementById('brandList').innerHTML = (data.brands || []).map((item) => `<span class="chip">${item.name}</span>`).join('') || '<span class="muted">Sin marcas.</span>';
     }
 
@@ -32,7 +34,7 @@
           <div class="triple-grid">
             <section class="surface-card">
               <h3>Categorias</h3>
-              <form class="catalogForm stack-form" data-type="categories">
+              <form class="catalogForm stack-form" data-type="categories" action="javascript:void(0);">
                 <input class="input" name="name" placeholder="Nueva categoria" required>
                 <button class="button secondary" type="submit">Guardar categoria</button>
               </form>
@@ -41,7 +43,7 @@
 
             <section class="surface-card">
               <h3>Marcas</h3>
-              <form class="catalogForm stack-form" data-type="brands">
+              <form class="catalogForm stack-form" data-type="brands" action="javascript:void(0);">
                 <input class="input" name="name" placeholder="Nueva marca" required>
                 <button class="button secondary" type="submit">Guardar marca</button>
               </form>
@@ -77,6 +79,20 @@
             setNotice('adminNotice', error.message, 'error');
           }
         });
+      });
+
+      document.addEventListener('click', async (event) => {
+        const deleteButton = event.target.closest('[data-delete-category]');
+        if (!deleteButton) return;
+        try {
+          await api(`/api/admin/catalogs/categories/${deleteButton.dataset.deleteCategory}`, {
+            method: 'DELETE',
+          });
+          await loadCatalogs();
+          setNotice('adminNotice', 'Categoria eliminada correctamente', 'success');
+        } catch (error) {
+          setNotice('adminNotice', error.message, 'error');
+        }
       });
     })().catch((error) => setNotice('adminNotice', error.message, 'error'));
   </script>

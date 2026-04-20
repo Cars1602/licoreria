@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>POS | Licoreria</title>
-  <link rel="stylesheet" href="/licoreria/assets/app.css">
+  <link rel="stylesheet" href="./assets/app.css">
 </head>
 <body>
   <div class="container">
@@ -24,6 +24,11 @@
         <div class="grid">
           <input class="input" id="scanInput" placeholder="PROD:2100000000017 o codigo de barras">
           <button class="button" id="scanButton">Agregar al carrito</button>
+        </div>
+        <video id="posScannerVideo" class="scanner-video hidden" autoplay playsinline muted></video>
+        <div class="inline-actions" style="margin-top:14px;">
+          <button class="button secondary compact" id="startScannerButton" type="button">Iniciar camara</button>
+          <button class="button secondary compact" id="stopScannerButton" type="button">Detener camara</button>
         </div>
       </section>
 
@@ -71,16 +76,15 @@
     </div>
   </div>
   <script>window.APP_BASE_URL='';</script>
-    <script>
-    window.APP_BASE_URL = '';
-    window.API_BASE_URL = 'https://licoreria-api.onrender.com';
-  </script>
-  <script src="/licoreria/assets/app.js"></script>
+  <script src="./assets/app.js"></script>
   <script>
     const params = new URLSearchParams(window.location.search);
     const posId = params.get('pos_id');
     let currentSettings = null;
     let cartItems = [];
+    let barcodeDetector = null;
+    let scannerTimer = null;
+    let scannerStream = null;
 
     function recalc() {
       const total = cartItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
@@ -120,6 +124,57 @@
       document.getElementById('connectUrlText').textContent = data.mobileUrl;
     }
 
+    async function addQrTextToCart(qrText) {
+      await api(`/api/pos/${posId}/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qr_text: qrText }),
+      });
+      document.getElementById('scanInput').value = '';
+      await loadPos();
+    }
+
+    async function startScanner() {
+      if (!('BarcodeDetector' in window)) {
+        throw new Error('Este navegador no soporta escaneo por camara.');
+      }
+      barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+      scannerStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+
+      const video = document.getElementById('posScannerVideo');
+      video.srcObject = scannerStream;
+      video.classList.remove('hidden');
+
+      scannerTimer = window.setInterval(async () => {
+        try {
+          const codes = await barcodeDetector.detect(video);
+          if (!codes.length) return;
+          const rawValue = codes[0].rawValue || '';
+          if (!rawValue) return;
+          stopScanner();
+          await addQrTextToCart(rawValue);
+          setNotice('posNotice', 'Producto agregado al carrito por QR', 'success');
+        } catch {
+          // ignore frame issues
+        }
+      }, 900);
+    }
+
+    function stopScanner() {
+      if (scannerTimer) {
+        clearInterval(scannerTimer);
+        scannerTimer = null;
+      }
+      if (scannerStream) {
+        scannerStream.getTracks().forEach((track) => track.stop());
+        scannerStream = null;
+      }
+      document.getElementById('posScannerVideo').classList.add('hidden');
+    }
+
     async function loadPos() {
       const config = await api('/api/config');
       window.APP_BASE_URL = config.appBaseUrl || '';
@@ -140,17 +195,21 @@
       const qrText = document.getElementById('scanInput').value.trim();
       if (!qrText) return;
       try {
-        await api(`/api/pos/${posId}/scan`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ qr_text: qrText }),
-        });
-        document.getElementById('scanInput').value = '';
-        await loadPos();
+        await addQrTextToCart(qrText);
       } catch (error) {
         setNotice('posNotice', error.message, 'error');
       }
     });
+
+    document.getElementById('startScannerButton').addEventListener('click', async () => {
+      try {
+        await startScanner();
+      } catch (error) {
+        setNotice('posNotice', error.message, 'error');
+      }
+    });
+
+    document.getElementById('stopScannerButton').addEventListener('click', stopScanner);
 
     document.getElementById('paymentMethod').addEventListener('change', recalc);
     document.getElementById('discount').addEventListener('input', recalc);
@@ -177,6 +236,7 @@
     });
 
     loadPos().catch((error) => setNotice('posNotice', error.message, 'error'));
+    window.addEventListener('beforeunload', stopScanner);
   </script>
 </body>
 </html>

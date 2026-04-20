@@ -287,6 +287,9 @@ app.use((req, res, next) => {
 app.use(basePrefix, express.static(publicDir, { index: false }));
 app.use('/licoreria/assets', express.static(path.join(__dirname, 'licoreria', 'assets'), { index: false }));
 
+// Handle favicon.ico requests
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_, __, cb) => cb(null, settingsUploadDir),
@@ -541,6 +544,28 @@ app.post(appUrl('api/admin/catalogs/:type'), requireAdmin, async (req, res) => {
     res.json({ ok: true, item: result.rows[0] });
   } catch (error) {
     res.status(500).json({ error: 'No se pudo guardar el catalogo', detail: error.message });
+  }
+});
+
+app.delete(appUrl('api/admin/catalogs/:type/:id'), requireAdmin, async (req, res) => {
+  const catalogMap = {
+    categories: 'categories',
+    brands: 'brands',
+    suppliers: 'suppliers',
+  };
+  const tableName = catalogMap[req.params.type];
+  if (!tableName) {
+    return res.status(400).json({ error: 'Catalogo invalido' });
+  }
+
+  try {
+    await pool.query(`DELETE FROM ${tableName} WHERE id = $1`, [req.params.id]);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({
+      error: 'No se pudo eliminar el catalogo',
+      detail: error.message,
+    });
   }
 });
 

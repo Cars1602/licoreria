@@ -4,17 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Proveedores</title>
-  <link rel="stylesheet" href="/licoreria/assets/app.css">
+  <link rel="stylesheet" href="./assets/app.css">
 </head>
 <body>
   <div id="adminRoot"></div>
 
-    <script>
-    window.APP_BASE_URL = '';
-    window.API_BASE_URL = 'https://licoreria-api.onrender.com';
-  </script>
-  <script src="/licoreria/assets/app.js"></script>
-  <script src="/licoreria/assets/admin-common.js"></script>
+  <script>window.APP_BASE_URL='';</script>
+  <script src="./assets/app.js"></script>
+  <script src="./assets/admin-common.js"></script>
   <script>
     async function loadSuppliers() {
       const data = await api('/api/admin/catalogs');
@@ -33,7 +30,7 @@
           <div class="content-grid">
             <section class="surface-card">
               <h3>Nuevo proveedor</h3>
-              <form id="supplierForm" class="stack-form">
+              <form id="supplierForm" class="stack-form" action="javascript:void(0);">
                 <input class="input" name="name" placeholder="Nombre del proveedor" required>
                 <input class="input" name="phone" placeholder="Telefono">
                 <button class="button" type="submit">Guardar proveedor</button>

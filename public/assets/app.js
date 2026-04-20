@@ -1,6 +1,12 @@
 async function api(path, options = {}) {
-  const baseUrl = typeof window.API_BASE_URL === 'string' ? window.API_BASE_URL : '';
-  const response = await fetch(baseUrl + path, {
+  const deployedApiBase =
+    window.location.hostname.endsWith('netlify.app')
+      ? 'https://licoreria-api.onrender.com'
+      : '';
+  const apiBase = typeof window.API_BASE_URL === 'string' && window.API_BASE_URL.trim()
+    ? window.API_BASE_URL.trim().replace(/\/+$/, '')
+    : (window.APP_BASE_URL || deployedApiBase || '');
+  const response = await fetch(apiBase + path, {
     credentials: 'include',
     ...options,
   });
