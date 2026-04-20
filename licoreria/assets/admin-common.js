@@ -1,13 +1,13 @@
 const adminPageMap = [
-  { key: 'dashboard', label: 'Dashboard', href: './dashboard.html' },
-  { key: 'products', label: 'Productos', href: './productos.html' },
-  { key: 'catalogs', label: 'Marcas / Categorias', href: './marcas-categorias.html' },
-  { key: 'movements', label: 'Movimientos', href: './movimientos.html' },
-  { key: 'suppliers', label: 'Proveedores', href: './proveedores.html' },
-  { key: 'sales', label: 'Ventas', href: './ventas.html' },
-  { key: 'users', label: 'Usuarios', href: './usuarios.html' },
-  { key: 'reports', label: 'Reportes', href: './reportes.html' },
-  { key: 'settings', label: 'Configuracion', href: './configuracion.html' },
+  { key: 'dashboard', label: 'Dashboard', href: '/admin' },
+  { key: 'products', label: 'Productos', href: '/productos' },
+  { key: 'catalogs', label: 'Marcas / Categorias', href: '/marcas-categorias' },
+  { key: 'movements', label: 'Movimientos', href: '/movimientos' },
+  { key: 'suppliers', label: 'Proveedores', href: '/proveedores' },
+  { key: 'sales', label: 'Ventas', href: '/ventas' },
+  { key: 'users', label: 'Usuarios', href: '/usuarios' },
+  { key: 'reports', label: 'Reportes', href: '/reportes' },
+  { key: 'settings', label: 'Configuracion', href: '/configuracion' },
 ];
 
 async function bootAdminPage({ key, pageTitle, pageHeading, pageDescription, content }) {
@@ -27,7 +27,7 @@ async function bootAdminPage({ key, pageTitle, pageHeading, pageDescription, con
           `).join('')}
         </nav>
         <div class="sidebar-bottom">
-          <a class="sidebar-link" href="./employee">Panel empleado</a>
+          <a class="sidebar-link" href="/employee">Panel empleado</a>
           <button class="sidebar-link sidebar-button danger" id="logoutButton" type="button">Salir</button>
         </div>
       </aside>

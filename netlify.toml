@@ -31,3 +31,51 @@
   to = "/licoreria/mobile-pos.html"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/productos"
+  to = "/licoreria/productos.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/ventas"
+  to = "/licoreria/ventas.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/usuarios"
+  to = "/licoreria/usuarios.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/reportes"
+  to = "/licoreria/reportes.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/configuracion"
+  to = "/licoreria/configuracion.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/marcas-categorias"
+  to = "/licoreria/marcas-categorias.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/movimientos"
+  to = "/licoreria/movimientos.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/proveedores"
+  to = "/licoreria/proveedores.html"
+  status = 200
+  force = true
