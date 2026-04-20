@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Productos</title>
+  <link rel="stylesheet" href="/licoreria/assets/app.css">
+</head>
+<body>
+  <div id="adminRoot"></div>
+
+    <script>
+    window.APP_BASE_URL = '';
+    window.API_BASE_URL = 'https://licoreria-api.onrender.com';
+  </script>
+  <script src="/licoreria/assets/app.js"></script>
+  <script src="/licoreria/assets/admin-common.js"></script>
+  <script>
+    const state = { products: [], categories: [], brands: [] };
+
+    function fillProductForm(product = null) {
+      const form = document.getElementById('productForm');
+      form.reset();
+      form.querySelector('[name="id"]').value = product?.id || '';
+      form.querySelector('[name="barcode"]').value = product?.barcode || '';
+      form.querySelector('[name="name"]').value = product?.name || '';
+      form.querySelector('[name="cost"]').value = product?.cost || 0;
+      form.querySelector('[name="price"]').value = product?.price || 0;
+      form.querySelector('[name="stock"]').value = product?.stock || 0;
+      form.querySelector('[name="stock_min"]').value = product?.stock_min || 0;
+      form.querySelector('[name="unit"]').value = product?.unit || 'und';
+      form.querySelector('[name="expires_at"]').value = product?.expires_at ? String(product.expires_at).slice(0, 10) : '';
+      form.querySelector('[name="category_id"]').value = product?.category_id || '';
+      form.querySelector('[name="brand_id"]').value = product?.brand_id || '';
+      form.querySelector('[name="image_url"]').value = product?.image_url || '';
+      form.querySelector('[name="qr_payload"]').value = product?.qr_payload || '';
+      form.querySelector('[name="active"]').checked = Boolean(product ? product.active : true);
+    }
+
+    function renderSelects() {
+      document.getElementById('productCategory').innerHTML = `<option value="">Sin categoria</option>` +
+        state.categories.map((item) => `<option value="${item.id}">${item.name}</option>`).join('');
+      document.getElementById('productBrand').innerHTML = `<option value="">Sin marca</option>` +
+        state.brands.map((item) => `<option value="${item.id}">${item.name}</option>`).join('');
+    }
+
+    function renderProducts() {
+      document.querySelector('#productsTable tbody').innerHTML = state.products.map((product) => `
+        <tr>
+          <td>${product.barcode}</td>
+          <td>${product.name}</td>
+          <td>${product.category_name || '-'}</td>
+          <td>${product.brand_name || '-'}</td>
+          <td>${product.stock}</td>
+          <td>Bs ${money(product.price)}</td>
+          <td>${product.active ? 'Activo' : 'Inactivo'}</td>
+          <td>
+            <div class="inline-actions">
+              <button class="button secondary compact" type="button" data-edit-id="${product.id}">Editar</button>
+              <button class="button compact" type="button" data-qr-id="${product.id}">Ver QR</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadProducts() {
+      const data = await api('/api/admin/products');
+      state.products = data.items || [];
+      state.categories = data.categories || [];
+      state.brands = data.brands || [];
+      renderSelects();
+      renderProducts();
+      fillProductForm();
+    }
+
+    async function showQr(productId) {
+      const data = await api(`/api/admin/products/${productId}/qr`);
+      document.getElementById('qrProductTitle').textContent = data.product.name;
+      document.getElementById('qrProductPayload').textContent = data.payload;
+      document.getElementById('qrPreview').src = data.qrDataUrl;
+      document.getElementById('qrPreviewWrap').classList.remove('hidden');
+    }
+
+    (async () => {
+      await bootAdminPage({
+        key: 'products',
+        pageTitle: 'Productos',
+        pageHeading: 'PRODUCTOS',
+        pageDescription: 'Alta, edicion y QR individual por producto',
+        content: `
+          <div class="content-grid">
+            <section class="surface-card">
+              <div class="section-header">
+                <h3>Formulario de producto</h3>
+                <button class="button secondary compact" id="newProductButton" type="button">Nuevo</button>
+              </div>
+              <form id="productForm" action="javascript:void(0);">
+                <input type="hidden" name="id">
+                <div class="form-grid">
+                  <input class="input" name="barcode" placeholder="Codigo de barras" required>
+                  <input class="input" name="name" placeholder="Nombre" required>
+                  <input class="input" type="number" step="0.01" min="0" name="cost" placeholder="Costo">
+                  <input class="input" type="number" step="0.01" min="0" name="price" placeholder="Precio">
+                  <input class="input" type="number" step="0.001" min="0" name="stock" placeholder="Stock">
+                  <input class="input" type="number" step="0.001" min="0" name="stock_min" placeholder="Stock minimo">
+                  <input class="input" name="unit" placeholder="Unidad">
+                  <input class="input" type="date" name="expires_at">
+                  <select class="select" name="category_id" id="productCategory"></select>
+                  <select class="select" name="brand_id" id="productBrand"></select>
+                  <input class="input" name="image_url" placeholder="URL de imagen">
+                  <input class="input" name="qr_payload" placeholder="Payload QR opcional">
+                </div>
+                <div class="form-actions">
+                  <label class="checkline"><input type="checkbox" name="active" value="1" checked> Producto activo</label>
+                  <button class="button" type="submit">Guardar producto</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="surface-card">
+              <h3>QR del producto</h3>
+              <p class="muted">Este QR se puede imprimir en la etiqueta. El POS y el celular lo reconocen para agregar el producto al carrito.</p>
+              <div id="qrPreviewWrap" class="hidden">
+                <img id="qrPreview" alt="QR del producto">
+                <h4 id="qrProductTitle"></h4>
+                <p class="muted" id="qrProductPayload"></p>
+              </div>
+            </section>
+          </div>
+
+          <section class="surface-card" style="margin-top:18px;">
+            <h3>Listado de productos</h3>
+            <div class="table-wrap">
+              <table class="table" id="productsTable">
+                <thead>
+                  <tr>
+                    <th>Codigo</th>
+                    <th>Nombre</th>
+                    <th>Categoria</th>
+                    <th>Marca</th>
+                    <th>Stock</th>
+                    <th>Precio</th>
+                    <th>Estado</th>
+                    <th>Accion</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+        `,
+      });
+
+      await loadProducts();
+
+      document.getElementById('newProductButton').addEventListener('click', () => fillProductForm());
+      document.getElementById('productForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const payload = Object.fromEntries(new FormData(form).entries());
+        payload.active = form.querySelector('[name="active"]').checked ? '1' : '0';
+
+        try {
+          if (payload.id) {
+            await api(`/api/admin/products/${payload.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+          } else {
+            await api('/api/admin/products', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+          }
+          await loadProducts();
+          setNotice('adminNotice', 'Producto guardado correctamente', 'success');
+        } catch (error) {
+          setNotice('adminNotice', error.message, 'error');
+        }
+      });
+
+      document.getElementById('productsTable').addEventListener('click', async (event) => {
+        const editButton = event.target.closest('[data-edit-id]');
+        const qrButton = event.target.closest('[data-qr-id]');
+
+        if (editButton) {
+          const product = state.products.find((item) => item.id === editButton.dataset.editId);
+          if (product) fillProductForm(product);
+        }
+
+        if (qrButton) {
+          try {
+            await showQr(qrButton.dataset.qrId);
+          } catch (error) {
+            setNotice('adminNotice', error.message, 'error');
+          }
+        }
+      });
+    })().catch((error) => setNotice('adminNotice', error.message, 'error'));
+  </script>
+</body>
+</html>
+

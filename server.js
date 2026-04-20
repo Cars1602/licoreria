@@ -285,6 +285,7 @@ app.use((req, res, next) => {
 });
 
 app.use(basePrefix, express.static(publicDir, { index: false }));
+app.use('/licoreria/assets', express.static(path.join(__dirname, 'licoreria', 'assets'), { index: false }));
 
 const upload = multer({
   storage: multer.diskStorage({

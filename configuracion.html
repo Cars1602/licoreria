@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuracion</title>
+  <link rel="stylesheet" href="/licoreria/assets/app.css">
+</head>
+<body>
+  <div id="adminRoot"></div>
+
+    <script>
+    window.APP_BASE_URL = '';
+    window.API_BASE_URL = 'https://licoreria-api.onrender.com';
+  </script>
+  <script src="/licoreria/assets/app.js"></script>
+  <script src="/licoreria/assets/admin-common.js"></script>
+  <script>
+    (async () => {
+      await bootAdminPage({
+        key: 'settings',
+        pageTitle: 'Configuracion',
+        pageHeading: 'CONFIGURACION',
+        pageDescription: 'Ajustes generales del sistema',
+        content: `
+          <div class="content-grid">
+            <section class="surface-card">
+              <h3>Ajustes del negocio</h3>
+              <form id="settingsForm" enctype="multipart/form-data">
+                <div class="form-grid">
+                  <input class="input" name="business_name" placeholder="Negocio">
+                  <input class="input" name="currency_symbol" placeholder="Moneda">
+                  <input class="input" type="number" name="low_stock_alert_days" min="1" placeholder="Dias alerta">
+                  <select class="select" name="default_payment_method">
+                    <option value="CASH">CASH</option>
+                    <option value="CARD">CARD</option>
+                    <option value="QR">QR</option>
+                  </select>
+                  <input class="input" name="support_phone" placeholder="Telefono">
+                  <input class="input" name="qr_payment_label" placeholder="Texto QR">
+                  <input class="input" type="file" name="qr_payment_image" accept="image/*">
+                  <label class="checkline"><input type="checkbox" name="remove_qr_payment_image" value="1"> Quitar QR actual</label>
+                </div>
+                <textarea class="textarea" name="store_message" rows="4" placeholder="Mensaje ticket"></textarea>
+                <div class="form-actions">
+                  <button class="button" type="submit">Guardar configuracion</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="surface-card">
+              <h3>Vista del QR de pago</h3>
+              <div class="qr-box">
+                <div id="qrPreviewWrap" class="hidden">
+                  <img id="qrPreview" alt="QR de pago">
+                </div>
+                <p class="muted" id="qrLabelText"></p>
+              </div>
+            </section>
+          </div>
+        `,
+      });
+
+      const settings = await api('/api/settings');
+      for (const [key, value] of Object.entries(settings)) {
+        const field = document.querySelector(`#settingsForm [name="${key}"]`);
+        if (field && field.type !== 'file') field.value = value || '';
+      }
+
+      document.getElementById('qrLabelText').textContent = settings.qr_payment_label || '';
+      if (settings.qr_payment_image) {
+        document.getElementById('qrPreviewWrap').classList.remove('hidden');
+        document.getElementById('qrPreview').src = settings.qr_payment_image;
+      }
+
+      document.getElementById('settingsForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        try {
+          const formData = new FormData(event.currentTarget);
+          const data = await api('/api/settings', { method: 'POST', body: formData });
+          document.getElementById('qrLabelText').textContent = data.settings.qr_payment_label || '';
+          if (data.settings.qr_payment_image) {
+            document.getElementById('qrPreviewWrap').classList.remove('hidden');
+            document.getElementById('qrPreview').src = data.settings.qr_payment_image;
+          } else {
+            document.getElementById('qrPreviewWrap').classList.add('hidden');
+          }
+          setNotice('adminNotice', 'Configuracion guardada', 'success');
+        } catch (error) {
+          setNotice('adminNotice', error.message, 'error');
+        }
+      });
+    })().catch((error) => setNotice('adminNotice', error.message, 'error'));
+  </script>
+</body>
+</html>
+

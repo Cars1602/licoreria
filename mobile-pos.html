@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS Movil</title>
+  <link rel="stylesheet" href="/licoreria/assets/app.css">
+</head>
+<body>
+  <div class="employee-app">
+    <div class="employee-shell">
+      <div class="employee-header">
+        <div>
+          <h1>POS Movil</h1>
+          <p id="mobileSubtitle">Conectando con la sesion POS...</p>
+        </div>
+      </div>
+
+      <div id="mobileNotice" class="hidden"></div>
+
+      <div class="content-grid">
+        <section class="surface-card">
+          <h3>Escanear producto</h3>
+          <p class="muted">Escanea el QR del producto desde este celular para agregarlo al carrito del POS.</p>
+          <video id="mobileVideo" class="scanner-video hidden" autoplay playsinline muted></video>
+          <div class="inline-actions">
+            <button class="button" id="startScanButton" type="button">Iniciar camara</button>
+            <button class="button secondary" id="stopScanButton" type="button">Detener</button>
+          </div>
+          <div class="stack-form" style="margin-top:14px;">
+            <input class="input" id="manualQrInput" placeholder="PROD:codigo o barcode">
+            <button class="button secondary" id="manualAddButton" type="button">Agregar manualmente</button>
+          </div>
+        </section>
+
+        <section class="surface-card">
+          <h3>Carrito remoto</h3>
+          <div class="table-wrap">
+            <table class="table" id="mobileCartTable">
+              <thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Subt.</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>window.APP_BASE_URL='';</script>
+    <script>
+    window.APP_BASE_URL = '';
+    window.API_BASE_URL = 'https://licoreria-api.onrender.com';
+  </script>
+  <script src="/licoreria/assets/app.js"></script>
+  <script>
+    const token = new URLSearchParams(window.location.search).get('token') || '';
+    let detector = null;
+    let scanTimer = null;
+    let mediaStream = null;
+
+    function renderCart(items) {
+      document.querySelector('#mobileCartTable tbody').innerHTML = items.length
+        ? items.map((item) => `
+            <tr>
+              <td>${item.name}</td>
+              <td>${item.qty}</td>
+              <td>Bs ${money(item.price)}</td>
+              <td>Bs ${money(item.subtotal)}</td>
+            </tr>
+          `).join('')
+        : '<tr><td colspan="4" class="muted">Sin productos en el carrito.</td></tr>';
+    }
+
+    async function loadMobileSession() {
+      const config = await api('/api/config');
+      window.APP_BASE_URL = config.appBaseUrl || '';
+      const data = await api(`/api/mobile-pos/session?token=${encodeURIComponent(token)}`);
+      document.title = `POS Movil | ${data.pos.display_name}`;
+      document.getElementById('mobileSubtitle').textContent = `Sesion de ${data.pos.display_name} | ${data.pos.email}`;
+      renderCart(data.items || []);
+    }
+
+    async function addQrToCart(qrText) {
+      const data = await api('/api/mobile-pos/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, qr_text: qrText }),
+      });
+      renderCart(data.items || []);
+      setNotice('mobileNotice', data.message, 'success');
+    }
+
+    async function startScanner() {
+      if (!('BarcodeDetector' in window)) {
+        throw new Error('Este celular no soporta BarcodeDetector. Usa la carga manual.');
+      }
+
+      detector = new BarcodeDetector({ formats: ['qr_code'] });
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+
+      const video = document.getElementById('mobileVideo');
+      video.srcObject = mediaStream;
+      video.classList.remove('hidden');
+
+      scanTimer = window.setInterval(async () => {
+        try {
+          const codes = await detector.detect(video);
+          if (!codes.length) return;
+          const value = codes[0].rawValue || '';
+          if (!value) return;
+          stopScanner();
+          await addQrToCart(value);
+        } catch {
+          // ignore frame errors
+        }
+      }, 900);
+    }
+
+    function stopScanner() {
+      if (scanTimer) {
+        window.clearInterval(scanTimer);
+        scanTimer = null;
+      }
+      if (mediaStream) {
+        mediaStream.getTracks().forEach((track) => track.stop());
+        mediaStream = null;
+      }
+      document.getElementById('mobileVideo').classList.add('hidden');
+    }
+
+    document.getElementById('startScanButton').addEventListener('click', async () => {
+      try {
+        await startScanner();
+      } catch (error) {
+        setNotice('mobileNotice', error.message, 'error');
+      }
+    });
+
+    document.getElementById('stopScanButton').addEventListener('click', stopScanner);
+
+    document.getElementById('manualAddButton').addEventListener('click', async () => {
+      const value = document.getElementById('manualQrInput').value.trim();
+      if (!value) return;
+      try {
+        await addQrToCart(value);
+        document.getElementById('manualQrInput').value = '';
+      } catch (error) {
+        setNotice('mobileNotice', error.message, 'error');
+      }
+    });
+
+    loadMobileSession().catch((error) => setNotice('mobileNotice', error.message, 'error'));
+    window.addEventListener('beforeunload', stopScanner);
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reportes</title>
+  <link rel="stylesheet" href="/licoreria/assets/app.css">
+</head>
+<body>
+  <div id="adminRoot"></div>
+
+    <script>
+    window.APP_BASE_URL = '';
+    window.API_BASE_URL = 'https://licoreria-api.onrender.com';
+  </script>
+  <script src="/licoreria/assets/app.js"></script>
+  <script src="/licoreria/assets/admin-common.js"></script>
+  <script>
+    (async () => {
+      await bootAdminPage({
+        key: 'reports',
+        pageTitle: 'Reportes',
+        pageHeading: 'REPORTES',
+        pageDescription: 'Resumen comercial y productos mas vendidos',
+        content: `
+          <div class="metric-grid compact" id="reportSummary"></div>
+          <div class="content-grid" style="margin-top:18px;">
+            <section class="surface-card">
+              <h3>Metodos de pago</h3>
+              <div id="paymentMethods" class="stack-list"></div>
+            </section>
+            <section class="surface-card">
+              <h3>Top productos</h3>
+              <div id="topProducts" class="stack-list"></div>
+            </section>
+          </div>
+        `,
+      });
+
+      const data = await api('/api/admin/reports');
+      const summary = data.summary || {};
+      document.getElementById('reportSummary').innerHTML = `
+        <div class="metric-card"><small>Ventas totales</small><strong>${summary.total_sales || 0}</strong></div>
+        <div class="metric-card"><small>Monto total</small><strong>Bs ${money(summary.total_amount)}</strong></div>
+        <div class="metric-card"><small>Ticket promedio</small><strong>Bs ${money(summary.average_ticket)}</strong></div>
+      `;
+
+      document.getElementById('paymentMethods').innerHTML = (data.paymentMethods || []).map((item) => `
+        <div class="list-card">
+          <strong>${item.payment_method}</strong>
+          <span>Ventas: ${item.total} | Monto: Bs ${money(item.amount)}</span>
+        </div>
+      `).join('') || '<p class="muted">Sin datos.</p>';
+
+      document.getElementById('topProducts').innerHTML = (data.topProducts || []).map((item) => `
+        <div class="list-card">
+          <strong>${item.name_snap}</strong>
+          <span>Codigo: ${item.barcode_snap} | Vendido: ${item.qty_sold} | Monto: Bs ${money(item.amount)}</span>
+        </div>
+      `).join('') || '<p class="muted">Sin datos.</p>';
+    })().catch((error) => setNotice('adminNotice', error.message, 'error'));
+  </script>
+</body>
+</html>
+

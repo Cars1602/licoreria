@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proveedores</title>
+  <link rel="stylesheet" href="/licoreria/assets/app.css">
+</head>
+<body>
+  <div id="adminRoot"></div>
+
+    <script>
+    window.APP_BASE_URL = '';
+    window.API_BASE_URL = 'https://licoreria-api.onrender.com';
+  </script>
+  <script src="/licoreria/assets/app.js"></script>
+  <script src="/licoreria/assets/admin-common.js"></script>
+  <script>
+    async function loadSuppliers() {
+      const data = await api('/api/admin/catalogs');
+      document.getElementById('supplierList').innerHTML = (data.suppliers || []).length
+        ? data.suppliers.map((item) => `<div class="list-card"><strong>${item.name}</strong><span>${item.phone || 'Sin telefono'}</span></div>`).join('')
+        : '<p class="muted">Sin proveedores registrados.</p>';
+    }
+
+    (async () => {
+      await bootAdminPage({
+        key: 'suppliers',
+        pageTitle: 'Proveedores',
+        pageHeading: 'PROVEEDORES',
+        pageDescription: 'Registro y consulta de proveedores',
+        content: `
+          <div class="content-grid">
+            <section class="surface-card">
+              <h3>Nuevo proveedor</h3>
+              <form id="supplierForm" class="stack-form">
+                <input class="input" name="name" placeholder="Nombre del proveedor" required>
+                <input class="input" name="phone" placeholder="Telefono">
+                <button class="button" type="submit">Guardar proveedor</button>
+              </form>
+            </section>
+
+            <section class="surface-card">
+              <h3>Listado</h3>
+              <div id="supplierList" class="stack-list"></div>
+            </section>
+          </div>
+        `,
+      });
+
+      await loadSuppliers();
+
+      document.getElementById('supplierForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
+        try {
+          await api('/api/admin/catalogs/suppliers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          event.currentTarget.reset();
+          await loadSuppliers();
+          setNotice('adminNotice', 'Proveedor guardado correctamente', 'success');
+        } catch (error) {
+          setNotice('adminNotice', error.message, 'error');
+        }
+      });
+    })().catch((error) => setNotice('adminNotice', error.message, 'error'));
+  </script>
+</body>
+</html>
+
