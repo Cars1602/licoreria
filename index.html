@@ -28,7 +28,7 @@
   <script src="./licoreria/assets/app.js"></script>
   <script>
     api('/api/config').then((data) => {
-      window.APP_BASE_URL = data.appBaseUrl || 'https://licoreria-api.onrender.com';
+      window.APP_BASE_URL = data.appBaseUrl || '';
       document.title = 'Login | ' + (data.settings.business_name || 'Licoreria');
     }).catch(() => {
       setNotice('loginNotice', 'Debes iniciar el servidor Node.js para usar el sistema.', 'error');
