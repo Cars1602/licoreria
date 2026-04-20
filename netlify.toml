@@ -4,78 +4,78 @@
 
 [[redirects]]
   from = "/admin"
-  to = "/licoreria/dashboard.html"
+  to = "/dashboard.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/employee"
-  to = "/licoreria/employee.html"
+  to = "/employee.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/pos"
-  to = "/licoreria/pos.html"
+  to = "/pos.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/ticket"
-  to = "/licoreria/ticket.html"
+  to = "/ticket.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/mobile-pos"
-  to = "/licoreria/mobile-pos.html"
+  to = "/mobile-pos.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/productos"
-  to = "/licoreria/productos.html"
+  to = "/productos.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/ventas"
-  to = "/licoreria/ventas.html"
+  to = "/ventas.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/usuarios"
-  to = "/licoreria/usuarios.html"
+  to = "/usuarios.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/reportes"
-  to = "/licoreria/reportes.html"
+  to = "/reportes.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/configuracion"
-  to = "/licoreria/configuracion.html"
+  to = "/configuracion.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/marcas-categorias"
-  to = "/licoreria/marcas-categorias.html"
+  to = "/marcas-categorias.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/movimientos"
-  to = "/licoreria/movimientos.html"
+  to = "/movimientos.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/proveedores"
-  to = "/licoreria/proveedores.html"
+  to = "/proveedores.html"
   status = 200
   force = true
