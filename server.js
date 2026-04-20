@@ -135,6 +135,12 @@ function getExternalBaseUrl(req) {
   if (configured) {
     return configured.replace(/\/+$/, '');
   }
+  // En producción (Render), usar la URL de Render desde el host
+  if (process.env.NODE_ENV === 'production' || req.get('host')?.includes('onrender.com')) {
+    const host = req.get('host');
+    return `https://${host}${basePrefix}`;
+  }
+  // En desarrollo, usar IP local
   const host = req.get('host') || `localhost:${PORT}`;
   const port = host.includes(':') ? host.split(':').pop() : String(PORT);
   return `http://${getLanIpAddress()}:${port}${basePrefix}`;
