@@ -1,5 +1,5 @@
 async function api(path, options = {}) {
-  const baseUrl = typeof window.APP_BASE_URL === 'string' ? window.APP_BASE_URL : '';
+  const baseUrl = window.API_BASE_URL;
   const response = await fetch(baseUrl + path, {
     credentials: 'include',
     ...options,
