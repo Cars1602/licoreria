@@ -13,7 +13,7 @@
   <script src="./assets/app.js"></script>
   <script src="./assets/admin-common.js"></script>
   <script>
-    const state = { products: [], categories: [], brands: [] };
+    const state = { products: [], categories: [], brands: [], suppliers: [], query: '' };
 
     function fillProductForm(product = null) {
       const form = document.getElementById('productForm');
@@ -29,6 +29,7 @@
       form.querySelector('[name="expires_at"]').value = product?.expires_at ? String(product.expires_at).slice(0, 10) : '';
       form.querySelector('[name="category_id"]').value = product?.category_id || '';
       form.querySelector('[name="brand_id"]').value = product?.brand_id || '';
+      form.querySelector('[name="supplier_id"]').value = product?.supplier_id || '';
       form.querySelector('[name="image_url"]').value = product?.image_url || '';
       form.querySelector('[name="qr_payload"]').value = product?.qr_payload || '';
       form.querySelector('[name="active"]').checked = Boolean(product ? product.active : true);
@@ -39,26 +40,65 @@
         state.categories.map((item) => `<option value="${item.id}">${item.name}</option>`).join('');
       document.getElementById('productBrand').innerHTML = `<option value="">Sin marca</option>` +
         state.brands.map((item) => `<option value="${item.id}">${item.name}</option>`).join('');
+      document.getElementById('productSupplier').innerHTML = `<option value="">Sin proveedor principal</option>` +
+        state.suppliers.map((item) => `<option value="${item.id}">${item.name}</option>`).join('');
+    }
+
+    function productMatchesQuery(product) {
+      const query = state.query.trim().toLowerCase();
+      if (!query) return true;
+      return [
+        product.name,
+        product.barcode,
+        product.category_name,
+        product.brand_name,
+        product.supplier_name,
+      ].some((value) => String(value || '').toLowerCase().includes(query));
+    }
+
+    function productImage(product) {
+      return resolveApiAssetUrl(product.image_url || '');
     }
 
     function renderProducts() {
-      document.querySelector('#productsTable tbody').innerHTML = state.products.map((product) => `
-        <tr>
-          <td>${product.barcode}</td>
-          <td>${product.name}</td>
-          <td>${product.category_name || '-'}</td>
-          <td>${product.brand_name || '-'}</td>
-          <td>${product.stock}</td>
-          <td>Bs ${money(product.price)}</td>
-          <td>${product.active ? 'Activo' : 'Inactivo'}</td>
-          <td>
-            <div class="inline-actions">
-              <button class="button secondary compact" type="button" data-edit-id="${product.id}">Editar</button>
-              <button class="button compact" type="button" data-qr-id="${product.id}">Ver QR</button>
-            </div>
-          </td>
-        </tr>
-      `).join('');
+      const items = state.products.filter(productMatchesQuery);
+      document.getElementById('productsCounter').textContent = `${items.length} producto(s)`;
+      document.getElementById('productsCards').innerHTML = items.length
+        ? items.map((product) => `
+            <article class="product-card ${product.active ? '' : 'is-inactive'}">
+              <div class="product-card-media">
+                ${product.image_url
+                  ? `<img src="${productImage(product)}" alt="${product.name}" onerror="this.replaceWith(Object.assign(document.createElement('div'), { className: 'product-card-fallback', textContent: 'Sin imagen' }))">`
+                  : `<div class="product-card-fallback">Sin imagen</div>`
+                }
+              </div>
+              <div class="product-card-body">
+                <div class="section-header">
+                  <div>
+                    <h3>${product.name}</h3>
+                    <p class="muted">Codigo: ${product.barcode}</p>
+                  </div>
+                  <span class="product-status ${product.active ? 'active' : 'inactive'}">${product.active ? 'Activo' : 'Inactivo'}</span>
+                </div>
+                <div class="product-meta">
+                  <span class="chip">Categoria: ${product.category_name || 'Sin categoria'}</span>
+                  <span class="chip">Marca: ${product.brand_name || 'Sin marca'}</span>
+                  <span class="chip">Proveedor: ${product.supplier_name || 'Sin proveedor'}</span>
+                </div>
+                <div class="metric-grid compact" style="margin-top:14px;">
+                  <div class="metric-card"><small>Stock</small><strong>${product.stock}</strong></div>
+                  <div class="metric-card"><small>Minimo</small><strong>${product.stock_min}</strong></div>
+                  <div class="metric-card"><small>Costo</small><strong>Bs ${money(product.cost)}</strong></div>
+                  <div class="metric-card"><small>Precio</small><strong>Bs ${money(product.price)}</strong></div>
+                </div>
+                <div class="inline-actions" style="margin-top:14px;">
+                  <button class="button secondary compact" type="button" data-edit-id="${product.id}">Editar</button>
+                  <button class="button compact" type="button" data-qr-id="${product.id}">Ver QR</button>
+                </div>
+              </div>
+            </article>
+          `).join('')
+        : '<p class="muted">No hay productos que coincidan con la busqueda.</p>';
     }
 
     async function loadProducts() {
@@ -66,6 +106,7 @@
       state.products = data.items || [];
       state.categories = data.categories || [];
       state.brands = data.brands || [];
+      state.suppliers = data.suppliers || [];
       renderSelects();
       renderProducts();
       fillProductForm();
@@ -105,6 +146,7 @@
                   <input class="input" type="date" name="expires_at">
                   <select class="select" name="category_id" id="productCategory"></select>
                   <select class="select" name="brand_id" id="productBrand"></select>
+                  <select class="select" name="supplier_id" id="productSupplier"></select>
                   <input class="input" name="image_url" placeholder="URL de imagen">
                   <input class="input" name="qr_payload" placeholder="Payload QR opcional">
                 </div>
@@ -130,24 +172,14 @@
           </div>
 
           <section class="surface-card" style="margin-top:18px;">
-            <h3>Listado de productos</h3>
-            <div class="table-wrap">
-              <table class="table" id="productsTable">
-                <thead>
-                  <tr>
-                    <th>Codigo</th>
-                    <th>Nombre</th>
-                    <th>Categoria</th>
-                    <th>Marca</th>
-                    <th>Stock</th>
-                    <th>Precio</th>
-                    <th>Estado</th>
-                    <th>Accion</th>
-                  </tr>
-                </thead>
-                <tbody></tbody>
-              </table>
+            <div class="section-header">
+              <div>
+                <h3>Catalogo visual</h3>
+                <p class="muted" id="productsCounter">0 producto(s)</p>
+              </div>
+              <input class="input compact-input" id="productSearch" placeholder="Buscar por nombre, codigo, marca o proveedor">
             </div>
+            <div id="productsCards" class="product-card-grid"></div>
           </section>
         `,
       });
@@ -182,7 +214,12 @@
         }
       });
 
-      document.getElementById('productsTable').addEventListener('click', async (event) => {
+      document.getElementById('productSearch').addEventListener('input', (event) => {
+        state.query = event.currentTarget.value || '';
+        renderProducts();
+      });
+
+      document.getElementById('productsCards').addEventListener('click', async (event) => {
         const editButton = event.target.closest('[data-edit-id]');
         const qrButton = event.target.closest('[data-qr-id]');
 

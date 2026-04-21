@@ -18,7 +18,10 @@
       document.getElementById('supplierList').innerHTML = (data.suppliers || []).length
         ? data.suppliers.map((item) => `
             <div class="list-card">
-              <strong>${item.name}</strong>
+              <div class="section-header">
+                <strong>${item.name}</strong>
+                <button class="button danger compact" type="button" data-delete-supplier="${item.id}">Eliminar</button>
+              </div>
               <span>Telefono: ${item.phone || 'Sin telefono'}</span>
               <span>Contacto: ${item.contact_name || 'Sin contacto'} | Correo: ${item.email || 'Sin correo'}</span>
               <span>Direccion: ${item.address || 'Sin direccion'}</span>
@@ -71,6 +74,20 @@
           event.currentTarget.reset();
           await loadSuppliers();
           setNotice('adminNotice', 'Proveedor guardado correctamente', 'success');
+        } catch (error) {
+          setNotice('adminNotice', error.message, 'error');
+        }
+      });
+
+      document.getElementById('supplierList').addEventListener('click', async (event) => {
+        const deleteButton = event.target.closest('[data-delete-supplier]');
+        if (!deleteButton) return;
+        try {
+          await api(`/api/admin/catalogs/suppliers/${deleteButton.dataset.deleteSupplier}`, {
+            method: 'DELETE',
+          });
+          await loadSuppliers();
+          setNotice('adminNotice', 'Proveedor eliminado correctamente', 'success');
         } catch (error) {
           setNotice('adminNotice', error.message, 'error');
         }

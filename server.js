@@ -302,6 +302,10 @@ async function initializeDatabase() {
       ADD COLUMN IF NOT EXISTS notes TEXT NULL
   `);
   await pool.query(`
+    ALTER TABLE products
+      ADD COLUMN IF NOT EXISTS supplier_id UUID NULL REFERENCES suppliers(id)
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS app_settings (
       id INT PRIMARY KEY,
       settings JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -688,11 +692,12 @@ app.get(appUrl('api/admin/products'), requireAdmin, async (_, res) => {
     const [products, catalogs] = await Promise.all([
       pool.query(`
         SELECT p.id, p.barcode, p.name, p.cost, p.price, p.stock, p.stock_min, p.unit, p.image_url,
-               p.qr_payload, p.expires_at, p.category_id, p.brand_id, p.active, p.created_at, p.updated_at,
-               c.name AS category_name, b.name AS brand_name
+               p.qr_payload, p.expires_at, p.category_id, p.brand_id, p.supplier_id, p.active, p.created_at, p.updated_at,
+               c.name AS category_name, b.name AS brand_name, s.name AS supplier_name
         FROM products p
         LEFT JOIN categories c ON c.id = p.category_id
         LEFT JOIN brands b ON b.id = p.brand_id
+        LEFT JOIN suppliers s ON s.id = p.supplier_id
         ORDER BY p.created_at DESC, p.name ASC
       `),
       getCatalogOptions(),
@@ -745,9 +750,9 @@ app.post(appUrl('api/admin/products'), requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
       INSERT INTO products (
-        barcode, name, cost, price, stock, stock_min, unit, image_url, qr_payload, expires_at, category_id, brand_id, active
+        barcode, name, cost, price, stock, stock_min, unit, image_url, qr_payload, expires_at, category_id, brand_id, supplier_id, active
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULLIF($11, '')::uuid, NULLIF($12, '')::uuid, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULLIF($11, '')::uuid, NULLIF($12, '')::uuid, NULLIF($13, '')::uuid, $14)
       RETURNING id
     `, [
       barcode,
@@ -762,6 +767,7 @@ app.post(appUrl('api/admin/products'), requireAdmin, async (req, res) => {
       normalizeNullableDate(req.body.expires_at),
       String(req.body.category_id || '').trim(),
       String(req.body.brand_id || '').trim(),
+      String(req.body.supplier_id || '').trim(),
       normalizeBoolean(req.body.active),
     ]);
 
@@ -793,7 +799,8 @@ app.put(appUrl('api/admin/products/:id'), requireAdmin, async (req, res) => {
           expires_at = $11,
           category_id = NULLIF($12, '')::uuid,
           brand_id = NULLIF($13, '')::uuid,
-          active = $14
+          supplier_id = NULLIF($14, '')::uuid,
+          active = $15
       WHERE id = $1
     `, [
       req.params.id,
@@ -809,6 +816,7 @@ app.put(appUrl('api/admin/products/:id'), requireAdmin, async (req, res) => {
       normalizeNullableDate(req.body.expires_at),
       String(req.body.category_id || '').trim(),
       String(req.body.brand_id || '').trim(),
+      String(req.body.supplier_id || '').trim(),
       normalizeBoolean(req.body.active),
     ]);
 
@@ -989,6 +997,43 @@ app.put(appUrl('api/admin/users/:id'), requireAdmin, async (req, res) => {
     res.json({ ok: true });
   } catch (error) {
     res.status(400).json({ error: 'No se pudo actualizar el usuario', detail: error.message });
+  }
+});
+
+app.delete(appUrl('api/admin/movements'), requireAdmin, async (req, res) => {
+  const month = String(req.query.month || '').trim();
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    return res.status(400).json({ error: 'Debes indicar un mes valido en formato YYYY-MM' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const deletedItems = await client.query(`
+      DELETE FROM movement_items
+      WHERE movement_id IN (
+        SELECT id
+        FROM movements
+        WHERE created_at >= $1::date
+          AND created_at < ($1::date + INTERVAL '1 month')
+      )
+    `, [`${month}-01`]);
+    const deletedMovements = await client.query(`
+      DELETE FROM movements
+      WHERE created_at >= $1::date
+        AND created_at < ($1::date + INTERVAL '1 month')
+    `, [`${month}-01`]);
+    await client.query('COMMIT');
+    res.json({
+      ok: true,
+      deletedMovements: deletedMovements.rowCount,
+      deletedItems: deletedItems.rowCount,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: 'No se pudieron eliminar los movimientos del mes', detail: error.message });
+  } finally {
+    client.release();
   }
 });
 

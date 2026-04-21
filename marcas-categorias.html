@@ -21,7 +21,12 @@
           <button class="chip-delete" type="button" data-delete-category="${item.id}">x</button>
         </span>
       `).join('') || '<span class="muted">Sin categorias.</span>';
-      document.getElementById('brandList').innerHTML = (data.brands || []).map((item) => `<span class="chip">${item.name}</span>`).join('') || '<span class="muted">Sin marcas.</span>';
+      document.getElementById('brandList').innerHTML = (data.brands || []).map((item) => `
+        <span class="chip">
+          ${item.name}
+          <button class="chip-delete" type="button" data-delete-brand="${item.id}">x</button>
+        </span>
+      `).join('') || '<span class="muted">Sin marcas.</span>';
     }
 
     (async () => {
@@ -83,13 +88,22 @@
 
       document.addEventListener('click', async (event) => {
         const deleteButton = event.target.closest('[data-delete-category]');
-        if (!deleteButton) return;
+        const deleteBrandButton = event.target.closest('[data-delete-brand]');
         try {
-          await api(`/api/admin/catalogs/categories/${deleteButton.dataset.deleteCategory}`, {
-            method: 'DELETE',
-          });
+          if (deleteButton) {
+            await api(`/api/admin/catalogs/categories/${deleteButton.dataset.deleteCategory}`, {
+              method: 'DELETE',
+            });
+            setNotice('adminNotice', 'Categoria eliminada correctamente', 'success');
+          } else if (deleteBrandButton) {
+            await api(`/api/admin/catalogs/brands/${deleteBrandButton.dataset.deleteBrand}`, {
+              method: 'DELETE',
+            });
+            setNotice('adminNotice', 'Marca eliminada correctamente', 'success');
+          } else {
+            return;
+          }
           await loadCatalogs();
-          setNotice('adminNotice', 'Categoria eliminada correctamente', 'success');
         } catch (error) {
           setNotice('adminNotice', error.message, 'error');
         }
