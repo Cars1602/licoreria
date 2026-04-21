@@ -185,7 +185,7 @@
       document.getElementById('posSubtitle').textContent = `Sesion ${data.pos.id}`;
       document.getElementById('qrLabel').textContent = currentSettings.qr_payment_label || 'Escanea este QR para pagar';
       if (currentSettings.qr_payment_image) {
-        document.getElementById('qrImage').src = currentSettings.qr_payment_image;
+        document.getElementById('qrImage').src = resolveApiAssetUrl(currentSettings.qr_payment_image);
       }
       renderCart();
       await loadConnectionQr();

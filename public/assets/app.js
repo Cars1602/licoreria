@@ -1,11 +1,23 @@
-async function api(path, options = {}) {
+function getApiBaseUrl() {
   const deployedApiBase =
     window.location.hostname.endsWith('netlify.app')
       ? 'https://licoreria-api.onrender.com'
       : '';
-  const apiBase = typeof window.API_BASE_URL === 'string' && window.API_BASE_URL.trim()
+
+  return typeof window.API_BASE_URL === 'string' && window.API_BASE_URL.trim()
     ? window.API_BASE_URL.trim().replace(/\/+$/, '')
     : (window.APP_BASE_URL || deployedApiBase || '');
+}
+
+function resolveApiAssetUrl(path) {
+  const raw = String(path || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw) || raw.startsWith('data:')) return raw;
+  return `${getApiBaseUrl()}${raw.startsWith('/') ? raw : `/${raw}`}`;
+}
+
+async function api(path, options = {}) {
+  const apiBase = getApiBaseUrl();
   const response = await fetch(apiBase + path, {
     credentials: 'include',
     ...options,
@@ -34,3 +46,5 @@ function setNotice(targetId, message, type = 'error') {
 function money(value) {
   return Number(value || 0).toFixed(2);
 }
+
+window.resolveApiAssetUrl = resolveApiAssetUrl;

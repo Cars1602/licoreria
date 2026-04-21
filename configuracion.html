@@ -67,7 +67,7 @@
       document.getElementById('qrLabelText').textContent = settings.qr_payment_label || '';
       if (settings.qr_payment_image) {
         document.getElementById('qrPreviewWrap').classList.remove('hidden');
-        document.getElementById('qrPreview').src = settings.qr_payment_image;
+        document.getElementById('qrPreview').src = resolveApiAssetUrl(settings.qr_payment_image);
       }
 
       document.getElementById('settingsForm').addEventListener('submit', async (event) => {
@@ -78,7 +78,7 @@
           document.getElementById('qrLabelText').textContent = data.settings.qr_payment_label || '';
           if (data.settings.qr_payment_image) {
             document.getElementById('qrPreviewWrap').classList.remove('hidden');
-            document.getElementById('qrPreview').src = data.settings.qr_payment_image;
+            document.getElementById('qrPreview').src = resolveApiAssetUrl(data.settings.qr_payment_image);
           } else {
             document.getElementById('qrPreviewWrap').classList.add('hidden');
           }
