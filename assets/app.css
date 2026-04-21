@@ -351,6 +351,29 @@ a {
   background: rgba(12, 25, 50, 0.94);
 }
 
+.sidebar-toggle {
+  display: none;
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(91, 126, 216, 0.45);
+  border-radius: 14px;
+  background: rgba(31, 52, 95, 0.95);
+  cursor: pointer;
+  padding: 10px;
+}
+
+.sidebar-toggle span {
+  display: block;
+  width: 100%;
+  height: 3px;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.sidebar-toggle span + span {
+  margin-top: 5px;
+}
+
 .topbar-title {
   font-weight: 700;
 }
@@ -572,9 +595,25 @@ a {
 
   .admin-sidebar {
     min-height: auto;
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    width: min(320px, 86vw);
+    height: 100vh;
     z-index: 3;
+    transform: translateX(-102%);
+    transition: transform .22s ease;
+    box-shadow: var(--shadow);
+  }
+
+  .admin-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-toggle {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
   }
 
   .triple-grid,
@@ -599,7 +638,6 @@ a {
   .toolbar,
   .section-header,
   .employee-header,
-  .topbar,
   .hero-row {
     grid-template-columns: 1fr;
   }
@@ -613,5 +651,19 @@ a {
 
   .mini-form {
     display: grid;
+  }
+
+  .topbar {
+    padding: 14px 16px;
+    align-items: flex-start;
+  }
+
+  .topbar-user {
+    width: 100%;
+    word-break: break-word;
+  }
+
+  .chart-row {
+    grid-template-columns: 1fr;
   }
 }

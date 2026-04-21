@@ -16,7 +16,7 @@ async function bootAdminPage({ key, pageTitle, pageHeading, pageDescription, con
 
   root.innerHTML = `
     <div class="admin-app">
-      <aside class="admin-sidebar">
+      <aside class="admin-sidebar" id="adminSidebar">
         <div class="brand-block">
           <h1 id="brandTitle">Inventario</h1>
           <p>Panel Administrador</p>
@@ -34,6 +34,11 @@ async function bootAdminPage({ key, pageTitle, pageHeading, pageDescription, con
 
       <main class="admin-main">
         <header class="topbar">
+          <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Abrir menu">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
           <div>
             <div class="topbar-title">${pageTitle}</div>
             <div class="muted">${pageDescription || ''}</div>
@@ -67,6 +72,14 @@ async function bootAdminPage({ key, pageTitle, pageHeading, pageDescription, con
   document.title = `${pageTitle} | ${config.settings.business_name || 'Licoreria'}`;
   document.getElementById('brandTitle').textContent = config.settings.business_name || 'Inventario';
   document.getElementById('adminUserEmail').textContent = me.user.email;
+  const sidebar = document.getElementById('adminSidebar');
+  const sidebarToggle = document.getElementById('sidebarToggle');
+  sidebarToggle?.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+  });
+  root.querySelectorAll('.sidebar-link').forEach((link) => {
+    link.addEventListener('click', () => sidebar.classList.remove('open'));
+  });
   document.getElementById('logoutButton').addEventListener('click', async () => {
     await api('/api/auth/logout', { method: 'POST' });
     window.location.href = (window.APP_BASE_URL || '') + '/';

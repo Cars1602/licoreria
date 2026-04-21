@@ -291,6 +291,21 @@ async function generateInvoiceNo(client) {
   return `V-${datePrefix}-${String(count + 1).padStart(4, '0')}`;
 }
 
+function getAllowedOrigins() {
+  const configuredOrigins = String(process.env.ALLOWED_ORIGINS || appEnvConfig.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  return new Set([
+    'https://licoreia-chaquenaso-edu-bo-m1.netlify.app',
+    'https://magical-bonbon-e7e0ce.netlify.app',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    ...configuredOrigins,
+  ]);
+}
+
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -308,10 +323,11 @@ app.use(session({
 }));
 
 app.use((req, res, next) => {
-  const allowedOrigin = 'https://magical-bonbon-e7e0ce.netlify.app';
+  const allowedOrigins = getAllowedOrigins();
   const origin = req.get('origin');
-  if (origin === allowedOrigin) {
-    res.header('Access-Control-Allow-Origin', allowedOrigin);
+  if (origin && allowedOrigins.has(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Vary', 'Origin');
     res.header('Access-Control-Allow-Credentials', 'true');
   }
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
