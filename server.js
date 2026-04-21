@@ -72,7 +72,8 @@ const defaultSettings = {
   qr_payment_label: 'Escanea este QR para realizar el pago.',
 };
 
-function readSettings() {
+function readLegacySettingsFile() {
+  if (!fs.existsSync(settingsFile)) return { ...defaultSettings };
   try {
     const raw = fs.readFileSync(settingsFile, 'utf8');
     const parsed = JSON.parse(raw);
@@ -82,8 +83,26 @@ function readSettings() {
   }
 }
 
-function writeSettings(settings) {
-  fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+async function readSettings() {
+  const result = await pool.query(
+    'SELECT settings FROM app_settings WHERE id = 1 LIMIT 1'
+  );
+
+  if (!result.rows.length) {
+    return { ...defaultSettings };
+  }
+
+  return { ...defaultSettings, ...(result.rows[0].settings || {}) };
+}
+
+async function writeSettings(settings) {
+  const normalized = { ...defaultSettings, ...(settings || {}) };
+  await pool.query(`
+    INSERT INTO app_settings (id, settings, updated_at)
+    VALUES (1, $1::jsonb, now())
+    ON CONFLICT (id)
+    DO UPDATE SET settings = EXCLUDED.settings, updated_at = now()
+  `, [JSON.stringify(normalized)]);
 }
 
 function appUrl(relativePath = '') {
@@ -282,6 +301,20 @@ async function initializeDatabase() {
       ADD COLUMN IF NOT EXISTS address TEXT NULL,
       ADD COLUMN IF NOT EXISTS notes TEXT NULL
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      id INT PRIMARY KEY,
+      settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CHECK (id = 1)
+    )
+  `);
+
+  const existingSettings = await pool.query('SELECT id FROM app_settings WHERE id = 1 LIMIT 1');
+  if (!existingSettings.rows.length) {
+    const legacySettings = readLegacySettingsFile();
+    await writeSettings(legacySettings);
+  }
 }
 
 async function generateInvoiceNo(client) {
@@ -347,13 +380,10 @@ app.use('/licoreria/assets', express.static(path.join(__dirname, 'licoreria', 'a
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (_, __, cb) => cb(null, settingsUploadDir),
-    filename: (_, file, cb) => {
-      const ext = path.extname(file.originalname) || '.png';
-      cb(null, `qrpay_${Date.now()}${ext.toLowerCase()}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
 });
 
 function requireAuth(req, res, next) {
@@ -472,11 +502,15 @@ app.get(appUrl('mobile-pos'), (_, res) => {
   res.sendFile(path.join(__dirname, 'mobile-pos.html'));
 });
 
-app.get(appUrl('api/config'), (_, res) => {
-  res.json({
-    appBaseUrl: basePrefix,
-    settings: readSettings(),
-  });
+app.get(appUrl('api/config'), async (_, res) => {
+  try {
+    res.json({
+      appBaseUrl: basePrefix,
+      settings: await readSettings(),
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'No se pudo cargar la configuracion', detail: error.message });
+  }
 });
 
 app.post(appUrl('api/auth/login'), async (req, res) => {
@@ -533,7 +567,7 @@ app.get(appUrl('api/auth/me'), (req, res) => {
 
 app.get(appUrl('api/admin/dashboard'), requireAdmin, async (_, res) => {
   try {
-    const [products, lowStock, expiring, salesToday, users, topProducts] = await Promise.all([
+    const [products, lowStock, expiring, salesToday, users, topProducts, settings] = await Promise.all([
       pool.query("SELECT COUNT(*)::int AS total FROM products WHERE active = TRUE"),
       pool.query("SELECT COUNT(*)::int AS total FROM products WHERE active = TRUE AND stock <= stock_min"),
       pool.query("SELECT COUNT(*)::int AS total FROM products WHERE active = TRUE AND expires_at IS NOT NULL AND expires_at <= CURRENT_DATE + INTERVAL '7 days'"),
@@ -548,6 +582,7 @@ app.get(appUrl('api/admin/dashboard'), requireAdmin, async (_, res) => {
         ORDER BY qty_sold DESC, si.name_snap ASC
         LIMIT 5
       `),
+      readSettings(),
     ]);
 
     res.json({
@@ -559,7 +594,7 @@ app.get(appUrl('api/admin/dashboard'), requireAdmin, async (_, res) => {
         users: users.rows[0].total,
       },
       topProducts: topProducts.rows,
-      settings: readSettings(),
+      settings,
     });
   } catch (error) {
     res.status(500).json({ error: 'No se pudo cargar el dashboard', detail: error.message });
@@ -970,28 +1005,37 @@ app.delete(appUrl('api/admin/users/:id'), requireAdmin, async (req, res) => {
   }
 });
 
-app.get(appUrl('api/settings'), requireAdmin, (_, res) => {
-  res.json(readSettings());
+app.get(appUrl('api/settings'), requireAdmin, async (_, res) => {
+  try {
+    res.json(await readSettings());
+  } catch (error) {
+    res.status(500).json({ error: 'No se pudo cargar la configuracion', detail: error.message });
+  }
 });
 
-app.post(appUrl('api/settings'), requireAdmin, upload.single('qr_payment_image'), (req, res) => {
-  const settings = readSettings();
-  settings.business_name = String(req.body.business_name || settings.business_name).trim() || 'Licoreria';
-  settings.currency_symbol = String(req.body.currency_symbol || settings.currency_symbol).trim() || 'Bs';
-  settings.low_stock_alert_days = Math.max(1, Number(req.body.low_stock_alert_days || settings.low_stock_alert_days || 7));
-  settings.default_payment_method = String(req.body.default_payment_method || settings.default_payment_method || 'CASH').trim();
-  settings.support_phone = String(req.body.support_phone || '').trim();
-  settings.store_message = String(req.body.store_message || '').trim();
-  settings.qr_payment_label = String(req.body.qr_payment_label || settings.qr_payment_label || '').trim();
+app.post(appUrl('api/settings'), requireAdmin, upload.single('qr_payment_image'), async (req, res) => {
+  try {
+    const settings = await readSettings();
+    settings.business_name = String(req.body.business_name || settings.business_name).trim() || 'Licoreria';
+    settings.currency_symbol = String(req.body.currency_symbol || settings.currency_symbol).trim() || 'Bs';
+    settings.low_stock_alert_days = Math.max(1, Number(req.body.low_stock_alert_days || settings.low_stock_alert_days || 7));
+    settings.default_payment_method = String(req.body.default_payment_method || settings.default_payment_method || 'CASH').trim();
+    settings.support_phone = String(req.body.support_phone || '').trim();
+    settings.store_message = String(req.body.store_message || '').trim();
+    settings.qr_payment_label = String(req.body.qr_payment_label || settings.qr_payment_label || '').trim();
 
-  if (req.body.remove_qr_payment_image === '1') {
-    settings.qr_payment_image = '';
-  } else if (req.file) {
-    settings.qr_payment_image = appUrl(`uploads/settings/${req.file.filename}`);
+    if (req.body.remove_qr_payment_image === '1') {
+      settings.qr_payment_image = '';
+    } else if (req.file) {
+      const mimeType = req.file.mimetype || 'image/png';
+      settings.qr_payment_image = `data:${mimeType};base64,${req.file.buffer.toString('base64')}`;
+    }
+
+    await writeSettings(settings);
+    res.json({ ok: true, settings });
+  } catch (error) {
+    res.status(500).json({ error: 'No se pudo guardar la configuracion', detail: error.message });
   }
-
-  writeSettings(settings);
-  res.json({ ok: true, settings });
 });
 
 app.post(appUrl('api/pos/session'), requireEmployeeOrAdmin, async (req, res) => {
@@ -1031,11 +1075,12 @@ app.get(appUrl('api/pos/:posId/connect'), requireEmployeeOrAdmin, async (req, re
 
 app.get(appUrl('api/employee/dashboard'), requireEmployeeOrAdmin, async (req, res) => {
   try {
-    const [activePos, salesToday, amountToday, recentSales] = await Promise.all([
+    const [activePos, salesToday, amountToday, recentSales, settings] = await Promise.all([
       pool.query('SELECT id, created_at FROM pos_sessions WHERE employee_id = $1 AND active = TRUE ORDER BY created_at DESC LIMIT 1', [req.session.user.id]),
       pool.query("SELECT COUNT(*)::int AS total FROM sales WHERE created_by = $1 AND status = 'PAID' AND created_at::date = CURRENT_DATE", [req.session.user.id]),
       pool.query("SELECT COALESCE(SUM(total), 0) AS total FROM sales WHERE created_by = $1 AND status = 'PAID' AND created_at::date = CURRENT_DATE", [req.session.user.id]),
       pool.query('SELECT id, invoice_no, total, payment_method, created_at FROM sales WHERE created_by = $1 ORDER BY created_at DESC LIMIT 10', [req.session.user.id]),
+      readSettings(),
     ]);
 
     res.json({
@@ -1044,7 +1089,7 @@ app.get(appUrl('api/employee/dashboard'), requireEmployeeOrAdmin, async (req, re
       salesToday: salesToday.rows[0].total,
       amountToday: amountToday.rows[0].total,
       recentSales: recentSales.rows,
-      settings: readSettings(),
+      settings,
     });
   } catch (error) {
     res.status(500).json({ error: 'No se pudo cargar el panel de empleado', detail: error.message });
@@ -1053,13 +1098,16 @@ app.get(appUrl('api/employee/dashboard'), requireEmployeeOrAdmin, async (req, re
 
 app.get(appUrl('api/pos/:posId'), requireEmployeeOrAdmin, async (req, res) => {
   try {
-    const posRow = await getPosSessionForUser(req.params.posId, req.session.user);
-    const cartRows = await getPosCartSnapshot(req.params.posId);
+    const [posRow, cartRows, settings] = await Promise.all([
+      getPosSessionForUser(req.params.posId, req.session.user),
+      getPosCartSnapshot(req.params.posId),
+      readSettings(),
+    ]);
 
     res.json({
       pos: posRow,
       items: cartRows,
-      settings: readSettings(),
+      settings,
     });
   } catch (error) {
     res.status(500).json({ error: 'No se pudo cargar el POS', detail: error.message });
@@ -1137,10 +1185,10 @@ app.post(appUrl('api/pos/:posId/finalize'), requireEmployeeOrAdmin, async (req, 
   const discount = Number(req.body.discount || 0);
   const cashReceived = Number(req.body.cash_received || 0);
   const qrConfirmed = String(req.body.qr_confirmed || '0') === '1';
-  const settings = readSettings();
   const client = await pool.connect();
 
   try {
+    const settings = await readSettings();
     await client.query('BEGIN');
 
     const posResult = await client.query('SELECT id, employee_id, active FROM pos_sessions WHERE id = $1 LIMIT 1', [req.params.posId]);
@@ -1235,7 +1283,8 @@ app.post(appUrl('api/pos/:posId/finalize'), requireEmployeeOrAdmin, async (req, 
 
 app.get(appUrl('api/tickets/:saleId'), requireEmployeeOrAdmin, async (req, res) => {
   try {
-    const saleResult = await pool.query(`
+    const [saleResult, settings] = await Promise.all([
+      pool.query(`
       SELECT s.id, s.invoice_no, s.created_at, s.payment_method, s.subtotal, s.discount, s.total, s.created_by, u.display_name,
              spm.cash_received, spm.change_due, spm.paid_amount
       FROM sales s
@@ -1243,7 +1292,9 @@ app.get(appUrl('api/tickets/:saleId'), requireEmployeeOrAdmin, async (req, res) 
       LEFT JOIN sale_payment_meta spm ON spm.sale_id = s.id
       WHERE s.id = $1
       LIMIT 1
-    `, [req.params.saleId]);
+    `, [req.params.saleId]),
+      readSettings(),
+    ]);
 
     if (!saleResult.rows.length) {
       return res.status(404).json({ error: 'Venta no encontrada' });
@@ -1263,7 +1314,7 @@ app.get(appUrl('api/tickets/:saleId'), requireEmployeeOrAdmin, async (req, res) 
     res.json({
       sale: saleResult.rows[0],
       items: itemsResult.rows,
-      settings: readSettings(),
+      settings,
     });
   } catch (error) {
     res.status(500).json({ error: 'No se pudo cargar el ticket', detail: error.message });
