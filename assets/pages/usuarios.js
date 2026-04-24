@@ -1,0 +1,134 @@
+const usersPageState = { items: [] };
+
+function fillUserForm(user = null) {
+  const form = document.getElementById('userForm');
+  form.reset();
+  form.querySelector('[name="id"]').value = user?.id || '';
+  form.querySelector('[name="display_name"]').value = user?.display_name || '';
+  form.querySelector('[name="email"]').value = user?.email || '';
+  form.querySelector('[name="password"]').value = '';
+  form.querySelector('[name="role"]').value = user?.role || 'empleado';
+  form.querySelector('[name="active"]').checked = Boolean(user ? user.active : true);
+}
+
+async function loadUsersPage() {
+  const data = await api('/api/admin/users');
+  usersPageState.items = data.items || [];
+  document.querySelector('#usersTable tbody').innerHTML = usersPageState.items.map((user) => `
+    <tr>
+      <td>${user.display_name}</td>
+      <td>${user.email}</td>
+      <td>${user.role}</td>
+      <td>${user.active ? 'Activo' : 'Inactivo'}</td>
+      <td>
+        <div class="inline-actions">
+          <button class="button secondary compact" type="button" data-user-id="${user.id}">Editar</button>
+          <button class="button danger compact" type="button" data-delete-user-id="${user.id}">Eliminar</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+  fillUserForm();
+}
+
+(async () => {
+  await bootAdminPage({
+    key: 'users',
+    pageTitle: 'Usuarios',
+    pageHeading: 'USUARIOS / EMPLEADOS',
+    pageDescription: 'Gestion de accesos del sistema',
+    content: `
+      <div class="content-grid">
+        <section class="surface-card">
+          <div class="section-header">
+            <h3>Formulario de usuario</h3>
+            <button class="button secondary compact" id="newUserButton" type="button">Nuevo</button>
+          </div>
+          <form id="userForm" class="stack-form" action="javascript:void(0);">
+            <input type="hidden" name="id">
+            <input class="input" name="display_name" placeholder="Nombre completo" required>
+            <input class="input" type="email" name="email" placeholder="Correo" required>
+            <input class="input" type="password" name="password" placeholder="Contrasena">
+            <select class="select" name="role">
+              <option value="admin">admin</option>
+              <option value="empleado">empleado</option>
+            </select>
+            <label class="checkline"><input type="checkbox" name="active" value="1" checked> Usuario activo</label>
+            <button class="button" type="submit">Guardar usuario</button>
+          </form>
+        </section>
+
+        <section class="surface-card">
+          <h3>Lista de usuarios</h3>
+          <div class="table-wrap">
+            <table class="table" id="usersTable">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Correo</th>
+                  <th>Rol</th>
+                  <th>Estado</th>
+                  <th>Accion</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    `,
+  });
+
+  await loadUsersPage();
+
+  document.getElementById('newUserButton').addEventListener('click', () => fillUserForm());
+  document.getElementById('userForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const payload = Object.fromEntries(new FormData(form).entries());
+    payload.active = form.querySelector('[name="active"]').checked ? '1' : '0';
+
+    try {
+      if (payload.id) {
+        await api(`/api/admin/users/${payload.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await api('/api/admin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
+      await loadUsersPage();
+      setNotice('adminNotice', 'Usuario guardado correctamente', 'success');
+    } catch (error) {
+      setNotice('adminNotice', error.message, 'error');
+    }
+  });
+
+  document.getElementById('usersTable').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-user-id]');
+    const deleteButton = event.target.closest('[data-delete-user-id]');
+
+    if (button) {
+      const user = usersPageState.items.find((item) => item.id === button.dataset.userId);
+      if (user) fillUserForm(user);
+    }
+
+    if (deleteButton) {
+      const user = usersPageState.items.find((item) => item.id === deleteButton.dataset.deleteUserId);
+      if (!user) return;
+      if (!window.confirm(`Eliminar al usuario ${user.display_name}?`)) return;
+
+      api(`/api/admin/users/${user.id}`, { method: 'DELETE' })
+        .then(async () => {
+          await loadUsersPage();
+          setNotice('adminNotice', 'Usuario eliminado correctamente', 'success');
+        })
+        .catch((error) => setNotice('adminNotice', error.message, 'error'));
+    }
+  });
+})().catch((error) => setNotice('adminNotice', error.message, 'error'));

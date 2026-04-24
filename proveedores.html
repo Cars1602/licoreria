@@ -9,91 +9,9 @@
 <body>
   <div id="adminRoot"></div>
 
-  <script>window.APP_BASE_URL='';</script>
   <script src="./assets/app.js"></script>
   <script src="./assets/admin-common.js"></script>
-  <script>
-    async function loadSuppliers() {
-      const data = await api('/api/admin/catalogs');
-      document.getElementById('supplierList').innerHTML = (data.suppliers || []).length
-        ? data.suppliers.map((item) => `
-            <div class="list-card">
-              <div class="section-header">
-                <strong>${item.name}</strong>
-                <button class="button danger compact" type="button" data-delete-supplier="${item.id}">Eliminar</button>
-              </div>
-              <span>Telefono: ${item.phone || 'Sin telefono'}</span>
-              <span>Contacto: ${item.contact_name || 'Sin contacto'} | Correo: ${item.email || 'Sin correo'}</span>
-              <span>Direccion: ${item.address || 'Sin direccion'}</span>
-              <span>Notas: ${item.notes || 'Sin notas'}</span>
-            </div>
-          `).join('')
-        : '<p class="muted">Sin proveedores registrados.</p>';
-    }
-
-    (async () => {
-      await bootAdminPage({
-        key: 'suppliers',
-        pageTitle: 'Proveedores',
-        pageHeading: 'PROVEEDORES',
-        pageDescription: 'Registro y consulta de proveedores',
-        content: `
-          <div class="content-grid">
-            <section class="surface-card">
-              <h3>Nuevo proveedor</h3>
-              <form id="supplierForm" class="stack-form" action="javascript:void(0);">
-                <input class="input" name="name" placeholder="Nombre del proveedor" required>
-                <input class="input" name="phone" placeholder="Telefono">
-                <input class="input" name="contact_name" placeholder="Nombre del contacto">
-                <input class="input" type="email" name="email" placeholder="Correo del proveedor">
-                <input class="input" name="address" placeholder="Direccion">
-                <textarea class="textarea" name="notes" rows="3" placeholder="Notas"></textarea>
-                <button class="button" type="submit">Guardar proveedor</button>
-              </form>
-            </section>
-
-            <section class="surface-card">
-              <h3>Listado</h3>
-              <div id="supplierList" class="stack-list"></div>
-            </section>
-          </div>
-        `,
-      });
-
-      await loadSuppliers();
-
-      document.getElementById('supplierForm').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const payload = Object.fromEntries(new FormData(event.currentTarget).entries());
-        try {
-          await api('/api/admin/catalogs/suppliers', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          event.currentTarget.reset();
-          await loadSuppliers();
-          setNotice('adminNotice', 'Proveedor guardado correctamente', 'success');
-        } catch (error) {
-          setNotice('adminNotice', error.message, 'error');
-        }
-      });
-
-      document.getElementById('supplierList').addEventListener('click', async (event) => {
-        const deleteButton = event.target.closest('[data-delete-supplier]');
-        if (!deleteButton) return;
-        try {
-          await api(`/api/admin/catalogs/suppliers/${deleteButton.dataset.deleteSupplier}`, {
-            method: 'DELETE',
-          });
-          await loadSuppliers();
-          setNotice('adminNotice', 'Proveedor eliminado correctamente', 'success');
-        } catch (error) {
-          setNotice('adminNotice', error.message, 'error');
-        }
-      });
-    })().catch((error) => setNotice('adminNotice', error.message, 'error'));
-  </script>
+  <script src="./assets/pages/proveedores.js"></script>
 </body>
 </html>
 
