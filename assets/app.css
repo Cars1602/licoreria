@@ -566,6 +566,26 @@ a {
   color: #ffcbcb;
 }
 
+.product-card .metric-grid.compact {
+  gap: 10px;
+}
+
+.product-card .metric-card {
+  border-radius: 14px;
+  padding: 12px 10px;
+}
+
+.product-card .metric-card small {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.product-card .metric-card strong {
+  font-size: 16px;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
 .chart-list {
   display: grid;
   gap: 14px;
