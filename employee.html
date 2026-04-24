@@ -43,6 +43,17 @@
       </section>
 
       <section class="surface-card" style="margin-top:18px;">
+        <div class="section-header">
+          <div>
+            <h3>Buscar producto</h3>
+            <p class="muted">Consulta si hay stock disponible y mira la imagen del producto.</p>
+          </div>
+          <input class="input compact-input" id="employeeProductSearch" placeholder="Buscar por nombre, codigo, marca o proveedor">
+        </div>
+        <div id="employeeProductResults" class="product-card-grid"></div>
+      </section>
+
+      <section class="surface-card" style="margin-top:18px;">
         <h3>Ultimas ventas</h3>
         <div class="table-wrap">
           <table class="table" id="recentSalesTable">
@@ -65,6 +76,54 @@
   <script src="./assets/app.js"></script>
   <script>
     let activePosId = null;
+    let productSearchTimer = null;
+
+    function employeeProductCard(product) {
+      const imageUrl = resolveApiAssetUrl(product.image_url || '');
+      return `
+        <article class="product-card">
+          <div class="product-card-media">
+            ${imageUrl
+              ? `<img src="${imageUrl}" alt="${product.name}" onerror="this.replaceWith(Object.assign(document.createElement('div'), { className: 'product-card-fallback', textContent: 'Sin imagen' }))">`
+              : `<div class="product-card-fallback">Sin imagen</div>`
+            }
+          </div>
+          <div class="product-card-body">
+            <div class="section-header">
+              <div>
+                <h3>${product.name}</h3>
+                <p class="muted">Codigo: ${product.barcode}</p>
+              </div>
+              <span class="product-status ${Number(product.stock) > 0 ? 'active' : 'inactive'}">
+                ${Number(product.stock) > 0 ? 'Disponible' : 'Agotado'}
+              </span>
+            </div>
+            <div class="product-meta">
+              <span class="chip">Categoria: ${product.category_name || 'Sin categoria'}</span>
+              <span class="chip">Marca: ${product.brand_name || 'Sin marca'}</span>
+              <span class="chip">Proveedor: ${product.supplier_name || 'Sin proveedor'}</span>
+            </div>
+            <div class="metric-grid compact" style="margin-top:14px;">
+              <div class="metric-card"><small>Stock</small><strong>${product.stock}</strong></div>
+              <div class="metric-card"><small>Precio</small><strong>Bs ${money(product.price)}</strong></div>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    async function searchEmployeeProducts(query) {
+      const target = document.getElementById('employeeProductResults');
+      if (!query.trim()) {
+        target.innerHTML = '<p class="muted">Escribe un nombre o codigo para buscar productos.</p>';
+        return;
+      }
+
+      const data = await api(`/api/employee/products/search?q=${encodeURIComponent(query)}`);
+      target.innerHTML = data.items.length
+        ? data.items.map(employeeProductCard).join('')
+        : '<p class="muted">No se encontraron productos con esa busqueda.</p>';
+    }
 
     function goToPos() {
       if (!activePosId) return;
@@ -128,10 +187,17 @@
 
       document.getElementById('openPosButton').textContent = activePosId ? 'Ir al POS' : 'Abrir POS';
       document.getElementById('openPosInlineButton').textContent = activePosId ? 'Abrir POS' : 'Crear POS';
+      document.getElementById('employeeProductResults').innerHTML = '<p class="muted">Escribe un nombre o codigo para buscar productos.</p>';
     }
 
     document.getElementById('openPosButton').addEventListener('click', ensurePosAndGo);
     document.getElementById('openPosInlineButton').addEventListener('click', ensurePosAndGo);
+    document.getElementById('employeeProductSearch').addEventListener('input', (event) => {
+      clearTimeout(productSearchTimer);
+      productSearchTimer = setTimeout(() => {
+        searchEmployeeProducts(event.currentTarget.value).catch((error) => setNotice('employeeNotice', error.message, 'error'));
+      }, 220);
+    });
 
     document.getElementById('logoutButton').addEventListener('click', async () => {
       await api('/api/auth/logout', { method: 'POST' });

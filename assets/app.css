@@ -259,6 +259,28 @@ a {
   display: none !important;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 7, 17, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 30;
+}
+
+.modal-panel {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  background: linear-gradient(180deg, rgba(20, 35, 66, 0.99), rgba(18, 32, 60, 0.99));
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+
 .qr-box {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);

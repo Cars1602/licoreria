@@ -1141,6 +1141,38 @@ app.get(appUrl('api/employee/dashboard'), requireEmployeeOrAdmin, async (req, re
   }
 });
 
+app.get(appUrl('api/employee/products/search'), requireEmployeeOrAdmin, async (req, res) => {
+  const query = String(req.query.q || '').trim();
+  if (!query) {
+    return res.json({ items: [] });
+  }
+
+  try {
+    const result = await pool.query(`
+      SELECT p.id, p.name, p.barcode, p.stock, p.price, p.image_url, p.active,
+             c.name AS category_name, b.name AS brand_name, s.name AS supplier_name
+      FROM products p
+      LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN brands b ON b.id = p.brand_id
+      LEFT JOIN suppliers s ON s.id = p.supplier_id
+      WHERE p.active = TRUE
+        AND (
+          p.name ILIKE $1
+          OR p.barcode ILIKE $1
+          OR COALESCE(c.name, '') ILIKE $1
+          OR COALESCE(b.name, '') ILIKE $1
+          OR COALESCE(s.name, '') ILIKE $1
+        )
+      ORDER BY p.stock DESC, p.name ASC
+      LIMIT 24
+    `, [`%${query}%`]);
+
+    res.json({ items: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: 'No se pudieron buscar productos', detail: error.message });
+  }
+});
+
 app.get(appUrl('api/pos/:posId'), requireEmployeeOrAdmin, async (req, res) => {
   try {
     const [posRow, cartRows, settings] = await Promise.all([
