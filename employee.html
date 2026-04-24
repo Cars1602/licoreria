@@ -8,7 +8,7 @@
 </head>
 <body>
   <div class="employee-app">
-    <div class="employee-shell">
+    <div class="employee-shell hidden" id="employeeShell">
       <div class="employee-header">
         <div>
           <h1>POS Empleado</h1>
@@ -146,7 +146,7 @@
       const config = await api('/api/config');
       window.APP_BASE_URL = config.appBaseUrl || '';
       const me = await api('/api/auth/me');
-      if (!me.user) {
+      if (!me.user || me.user.role !== 'empleado') {
         window.location.href = (window.APP_BASE_URL || '') + '/';
         return;
       }
@@ -188,14 +188,16 @@
       document.getElementById('openPosButton').textContent = activePosId ? 'Ir al POS' : 'Abrir POS';
       document.getElementById('openPosInlineButton').textContent = activePosId ? 'Abrir POS' : 'Crear POS';
       document.getElementById('employeeProductResults').innerHTML = '<p class="muted">Escribe un nombre o codigo para buscar productos.</p>';
+      document.getElementById('employeeShell').classList.remove('hidden');
     }
 
     document.getElementById('openPosButton').addEventListener('click', ensurePosAndGo);
     document.getElementById('openPosInlineButton').addEventListener('click', ensurePosAndGo);
     document.getElementById('employeeProductSearch').addEventListener('input', (event) => {
+      const query = event.currentTarget.value || '';
       clearTimeout(productSearchTimer);
       productSearchTimer = setTimeout(() => {
-        searchEmployeeProducts(event.currentTarget.value).catch((error) => setNotice('employeeNotice', error.message, 'error'));
+        searchEmployeeProducts(query).catch((error) => setNotice('employeeNotice', error.message, 'error'));
       }, 220);
     });
 
